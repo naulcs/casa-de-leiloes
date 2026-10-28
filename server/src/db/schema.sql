@@ -68,3 +68,11 @@ CREATE TABLE IF NOT EXISTS receipts (
   final_hash   TEXT NOT NULL,
   issued_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+
+
+CREATE TABLE IF NOT EXISTS lot_images (
+  lot_id       INT PRIMARY KEY REFERENCES lots(id),
+  content_type TEXT NOT NULL,
+  data         BYTEA NOT NULL
+);

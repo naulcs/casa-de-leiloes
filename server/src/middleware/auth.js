@@ -11,19 +11,42 @@ export function signToken(user) {
   });
 }
 
-export function requireAuth(req, res, next) {
+function readToken(req) {
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  return header.startsWith('Bearer ') ? header.slice(7) : null;
+}
+
+function readUser(token) {
+  const payload = jwt.verify(token, config.jwtSecret);
+  return { id: Number(payload.sub), role: payload.role };
+}
+
+export function requireAuth(req, res, next) {
+  const token = readToken(req);
   if (!token) {
     return res.status(401).json({ error: 'Faça login para continuar.' });
   }
   try {
-    const payload = jwt.verify(token, config.jwtSecret);
-    req.user = { id: Number(payload.sub), role: payload.role };
+    req.user = readUser(token);
     next();
-  } catch {
-    res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' });
+    } catch (erro) {
+    const expirou = erro.name === 'TokenExpiredError';
+    res.status(401).json({
+      error: expirou
+        ? 'Sessão expirada. Faça login novamente.'
+        : 'Token inválido. Faça login novamente.',
+    });
+  }}
+
+export function optionalAuth(req, res, next) {
+  const token = readToken(req);
+  if (token) {
+    try {
+      req.user = readUser(token);
+    } catch {
+    }
   }
+  next();
 }
 
 export function requireRole(role) {
