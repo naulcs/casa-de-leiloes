@@ -8,6 +8,7 @@ import {
   downloadImage,
   getAnt,
 } from '../services/inaturalist.js';
+import { sealNewLot } from '../services/integrity.js';
 import { LOT_FIELDS, serializeLot } from '../services/lots.js';
 
 export const lotsRouter = Router();
@@ -125,6 +126,17 @@ lotsRouter.post('/', ...soLeiloeiro, async (req, res) => {
       [req.user.id, formiga.external_id, formiga.title, formiga.image_url, formiga.attributes,
        starting_bid_cents, min_increment_cents, startsAt, endsAt]
     );
+        const selo = sealNewLot({
+      id: rows[0].id,
+      starting_bid_cents,
+      min_increment_cents,
+      starts_at: startsAt,
+    });
+    await client.query('UPDATE lots SET head_hash = $2, head_seal = $3 WHERE id = $1', [
+      rows[0].id,
+      selo.head_hash,
+      selo.head_seal,
+    ]);
     if (imagem) {
       await client.query(
         'INSERT INTO lot_images (lot_id, content_type, data) VALUES ($1, $2, $3)',

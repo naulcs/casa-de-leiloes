@@ -5,6 +5,8 @@ import { authRouter } from './routes/auth.js';
 import { walletRouter } from './routes/wallet.js';
 import { catalogRouter } from './routes/catalog.js';
 import { lotsRouter } from './routes/lots.js';
+import { bidsRouter } from './routes/bids.js';
+import { auditRouter } from './routes/audit.js';
 
 
 
@@ -29,6 +31,9 @@ app.use((erro, req, res, next) => {
 app.use('/api/wallet', walletRouter);
 app.use('/api/catalog', catalogRouter);
 app.use('/api/lots', lotsRouter);
+
+app.use('/api/lots', bidsRouter);
+app.use('/api/audit', auditRouter);
 
 app.listen(config.port, () => {
   console.log(`Servidor rodando em http://localhost:${config.port}`);
