@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import { config } from './config.js';
+import { authRouter } from './routes/auth.js';
 
 const app = express();
 app.use(cors());
@@ -9,7 +11,16 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, hora: new Date().toISOString() });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+app.use('/api/auth', authRouter);
+
+app.use((erro, req, res, next) => {
+  if (erro.status && erro.status < 500) {
+    return res.status(erro.status).json({ error: 'Requisição inválida.' });
+  }
+  console.error(erro);
+  res.status(500).json({ error: 'Erro interno do servidor.' });
+});
+
+app.listen(config.port, () => {
+  console.log(`Servidor rodando em http://localhost:${config.port}`);
 });
