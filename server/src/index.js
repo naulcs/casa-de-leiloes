@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config.js';
 import { authRouter } from './routes/auth.js';
+import { walletRouter } from './routes/wallet.js';
 
 const app = express();
 app.use(cors());
@@ -20,6 +21,8 @@ app.use((erro, req, res, next) => {
   console.error(erro);
   res.status(500).json({ error: 'Erro interno do servidor.' });
 });
+
+app.use('/api/wallet', walletRouter);
 
 app.listen(config.port, () => {
   console.log(`Servidor rodando em http://localhost:${config.port}`);
