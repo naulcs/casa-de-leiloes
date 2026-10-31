@@ -1,7 +1,14 @@
 import { useEffect, useRef } from "react";
 
-const CORES = ["#e0a84a", "#e0a84a", "#c98a45", "#b5562a", "#ecd3a0"];
 const RAIO_DO_CURSOR = 90;
+
+function lerCores() {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue("--formigas")
+    .split(",")
+    .map((cor) => cor.trim())
+    .filter(Boolean);
+}
 
 function sortear(lista) {
   return lista[Math.floor(Math.random() * lista.length)];
@@ -16,7 +23,7 @@ function criarNinhos(largura, altura) {
   ];
 }
 
-function criarFormigas(quantidade, ninhos) {
+function criarFormigas(quantidade, ninhos, cores) {
   return Array.from({ length: quantidade }, () => {
     const destino = Math.floor(Math.random() * ninhos.length);
     const ninho = ninhos[destino];
@@ -28,7 +35,7 @@ function criarFormigas(quantidade, ninhos) {
       direcao: Math.random() * Math.PI * 2,
       velocidade: 0.35 + Math.random() * 0.75,
       destino,
-      cor: sortear(CORES),
+      cor: sortear(cores),
       tamanho: 0.8 + Math.random() * 0.7,
     };
   });
@@ -127,7 +134,7 @@ export default function Formigueiro() {
       contexto.setTransform(escala, 0, 0, escala, 0, 0);
       ninhos = criarNinhos(largura, altura);
       const quantidade = Math.round(Math.min(520, (largura * altura) / 1600));
-      formigas = criarFormigas(quantidade, ninhos);
+      formigas = criarFormigas(quantidade, ninhos, lerCores());
       if (reduzido) desenhar();
     }
 
@@ -142,6 +149,18 @@ export default function Formigueiro() {
       cursor.y = -9999;
     }
 
+    function trocarCores() {
+      const cores = lerCores();
+      for (const formiga of formigas) formiga.cor = sortear(cores);
+      if (reduzido) desenhar();
+    }
+
+    const observador = new MutationObserver(trocarCores);
+    observador.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-tema"],
+    });
+
     preparar();
     if (!reduzido) animar();
     window.addEventListener("resize", preparar);
@@ -150,6 +169,7 @@ export default function Formigueiro() {
 
     return () => {
       cancelAnimationFrame(quadro);
+      observador.disconnect();
       window.removeEventListener("resize", preparar);
       area.removeEventListener("pointermove", aoMoverCursor);
       area.removeEventListener("pointerleave", aoSairCursor);

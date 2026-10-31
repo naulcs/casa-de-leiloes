@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, NavLink, Route, Routes } from "react-router-dom";
 import Formiga3D from "./Formiga3D.jsx";
 import { useAuth } from "./auth.jsx";
@@ -10,8 +11,26 @@ import Painel from "./pages/Painel.jsx";
 import Sala from "./pages/Sala.jsx";
 import Vitrine, { SECOES } from "./pages/Vitrine.jsx";
 
+function temaInicial() {
+  try {
+    const salvo = localStorage.getItem("formilance-tema");
+    if (salvo === "areia" || salvo === "terroso") return salvo;
+  } catch {}
+  return window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "areia"
+    : "terroso";
+}
+
 export default function App() {
   const { user, carregando, sair } = useAuth();
+  const [tema, setTema] = useState(temaInicial);
+
+  useEffect(() => {
+    document.documentElement.dataset.tema = tema;
+    try {
+      localStorage.setItem("formilance-tema", tema);
+    } catch {}
+  }, [tema]);
 
   if (carregando) return <p>Carregando...</p>;
 
@@ -29,6 +48,18 @@ export default function App() {
             </NavLink>
           ))}
         </nav>
+        <button
+          type="button"
+          className="tema-botao"
+          onClick={() => setTema(tema === "areia" ? "terroso" : "areia")}
+          aria-label={
+            tema === "areia"
+              ? "Mudar para o tema terroso"
+              : "Mudar para o tema areia"
+          }
+        >
+          {tema === "areia" ? "☾ Terroso" : "☀ Areia"}
+        </button>
         {user ? (
           <>
             <span>{user.name}</span>

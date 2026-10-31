@@ -23,6 +23,8 @@
     #e0a84a,
     #ecd3a0
   );
+  --textura: none;
+  --formigas: #e0a84a, #e0a84a, #c98a45, #b5562a, #ecd3a0;
   font-family: "Inter Tight", "Helvetica Neue", Arial, sans-serif;
   color: var(--texto);
   background: var(--fundo);
@@ -37,6 +39,7 @@ body {
   margin: 0;
   min-height: 100vh;
   background: var(--fundo);
+  background-image: var(--textura);
   color: var(--texto);
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
@@ -559,10 +562,10 @@ code {
   min-width: 0;
   padding: 0;
   overflow: visible;
-  border: 2px solid #3a2b20;
+  border: 2px solid var(--borda);
   border-radius: 30px;
-  background: #1c140e;
-  color: #f4ebdf;
+  background: var(--superficie);
+  color: var(--texto);
   box-shadow: none;
   cursor: pointer;
   transition: flex-basis 0.55s cubic-bezier(0.22, 1, 0.36, 1);
@@ -584,7 +587,7 @@ code {
   left: 4px;
   font-size: 0.95rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--texto);
 }
 
 .galeria-cartao > a:first-child {
@@ -673,12 +676,12 @@ code {
 .galeria-cartao.card h2,
 .galeria-cartao.card h3 {
   margin: 26px 28px 6px;
-  color: #ffffff;
+  color: var(--texto);
 }
 
 .galeria-cartao.card p {
   margin: 0 28px 4px;
-  color: #f4ebdf;
+  color: var(--texto);
   opacity: 0.85;
 }
 
@@ -692,7 +695,7 @@ code {
 }
 
 .galeria-cartao.card > a:not(:first-child) {
-  color: #e0a84a;
+  color: var(--limao);
 }
 
 .galeria-cartao.aberto::after {
@@ -701,7 +704,7 @@ code {
   left: 28px;
   bottom: 22px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--texto);
 }
 
 .galeria-controles {
@@ -711,7 +714,7 @@ code {
   gap: 16px;
   margin-top: 22px;
   font-weight: 700;
-  color: #c9b49a;
+  color: var(--texto-suave);
 }
 
 .galeria-controles button {
@@ -854,4 +857,56 @@ code {
     gap: 18px;
     padding: 0 16px 10px;
   }
+}
+
+:root[data-tema="areia"] {
+  --fundo: #ead9b8;
+  --superficie: #f4e8cf;
+  --superficie-2: #e0caa2;
+  --texto: #2b1d12;
+  --texto-suave: #6e5a44;
+  --borda: #cdb48a;
+  --destaque: #a84d22;
+  --destaque-forte: #c25e2e;
+  --limao: #8a4f12;
+  --aviso-fundo: rgba(138, 79, 18, 0.12);
+  --aviso-texto: #7a4410;
+  --alerta: #b3261e;
+  --sombra: 0 10px 30px rgba(90, 60, 30, 0.18);
+  --formigas: #3b2414, #5a2d16, #7a3b1c, #3b2414, #a84d22;
+  --textura:
+    radial-gradient(rgba(120, 85, 45, 0.16) 1px, transparent 1.4px),
+    radial-gradient(rgba(255, 250, 235, 0.5) 1px, transparent 1.4px),
+    radial-gradient(rgba(150, 110, 60, 0.1) 1.5px, transparent 2px);
+  color-scheme: light;
+}
+
+:root[data-tema="areia"] body {
+  background-size:
+    7px 7px,
+    11px 11px,
+    23px 19px;
+  background-position:
+    0 0,
+    3px 5px,
+    9px 2px;
+}
+
+:root[data-tema="areia"] .galeria-cartao.card {
+  background: var(--superficie);
+}
+
+.tema-botao {
+  align-self: stretch;
+  padding: 0 18px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--texto);
+  font-size: 0.85rem;
+}
+
+.tema-botao:hover:not(:disabled) {
+  background: var(--superficie-2);
+  color: var(--texto);
 }
