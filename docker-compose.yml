@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: formilance
+      POSTGRES_PASSWORD: formilance
+      POSTGRES_DB: formilance
+    volumes:
+      - dados:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U formilance -d formilance"]
+      interval: 3s
+      retries: 20
+
+  app:
+    build: .
+    ports:
+      - "${PORTA:-3000}:3000"
+    environment:
+      DATABASE_URL: postgres://formilance:formilance@db:5432/formilance
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-jwt}
+      AUDIT_SECRET: ${AUDIT_SECRET:-troque-este-segredo-de-auditoria}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dados:
