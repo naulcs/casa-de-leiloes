@@ -4,12 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "db:ping": "node src/db/ping.js",
     "db:init": "node src/db/migrate.js",
-    "db:reset": "node src/db/migrate.js --reset"
+    "db:reset": "node src/db/migrate.js --reset",
+    "db:seed": "node src/db/seed.js"
   },
   "keywords": [],
   "author": "",

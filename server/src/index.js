@@ -1,4 +1,7 @@
+import fs from "node:fs";
 import http from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import cors from "cors";
 import { config } from "./config.js";
@@ -33,6 +36,15 @@ app.use("/api/me", meRouter);
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Rota não encontrada." });
 });
+
+const pastaFront = fileURLToPath(new URL("../../client/dist", import.meta.url));
+if (fs.existsSync(pastaFront)) {
+  app.use(express.static(pastaFront));
+  app.use((req, res, next) => {
+    if (req.method !== "GET") return next();
+    res.sendFile(path.join(pastaFront, "index.html"));
+  });
+}
 
 app.use((erro, req, res, next) => {
   if (erro.status && erro.status < 500) {
