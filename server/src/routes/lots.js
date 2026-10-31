@@ -244,7 +244,7 @@ lotsRouter.post("/:id/cancel", ...soLeiloeiro, async (req, res) => {
 
   const resultado = await withTransaction(async (client) => {
     const { rows } = await client.query(
-      `SELECT id, bid_count, canceled_at, settled_at, (NOW() >= ends_at) AS ended
+      `SELECT id, bid_count, current_bid_cents, canceled_at, settled_at, (NOW() >= ends_at) AS ended
        FROM lots WHERE id = $1 AND auctioneer_id = $2 FOR UPDATE`,
       [req.params.id, req.user.id],
     );
@@ -258,17 +258,13 @@ lotsRouter.post("/:id/cancel", ...soLeiloeiro, async (req, res) => {
         error: "Este lote já encerrou e não pode mais ser cancelado.",
       };
     }
-    if (lote.bid_count > 0) {
-      return {
-        status: 409,
-        error:
-          "Este lote já recebeu lances e não pode ser cancelado. Lotes só podem ser cancelados antes do primeiro lance.",
-      };
-    }
     await client.query("UPDATE lots SET canceled_at = NOW() WHERE id = $1", [
       lote.id,
     ]);
-    return { status: 200 };
+    return {
+      status: 200,
+      refunded_cents: lote.bid_count > 0 ? lote.current_bid_cents : 0,
+    };
   });
 
   if (resultado.error)
@@ -276,5 +272,5 @@ lotsRouter.post("/:id/cancel", ...soLeiloeiro, async (req, res) => {
   publishLotChange(Number(req.params.id), { event: "canceled" }).catch(
     () => {},
   );
-  res.json({ canceled: true });
+  res.json({ canceled: true, refunded_cents: resultado.refunded_cents });
 });

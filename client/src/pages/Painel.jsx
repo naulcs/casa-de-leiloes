@@ -106,12 +106,20 @@ export default function Painel() {
   }
 
   async function cancelar(lote) {
-    if (!window.confirm(`Cancelar o lote "${lote.title}"?`)) return;
+    const aviso =
+      lote.bid_count > 0
+        ? `Cancelar o lote "${lote.title}"? Ele já tem lances: o valor reservado de quem está ganhando será devolvido na hora.`
+        : `Cancelar o lote "${lote.title}"?`;
+    if (!window.confirm(aviso)) return;
     setErro("");
     setMensagem("");
     try {
-      await api(`/lots/${lote.id}/cancel`, { method: "POST" });
-      setMensagem("Lote cancelado.");
+      const dados = await api(`/lots/${lote.id}/cancel`, { method: "POST" });
+      setMensagem(
+        dados.refunded_cents > 0
+          ? `Lote cancelado. ${formatarReais(dados.refunded_cents)} devolvidos ao saldo disponível de quem liderava.`
+          : "Lote cancelado.",
+      );
       carregarLotes();
     } catch (falha) {
       setErro(falha.message);
@@ -226,12 +234,11 @@ export default function Painel() {
                 ? ` — vendido por ${formatarReais(lote.result.amount_cents)}`
                 : " — sem venda")}{" "}
             <Link to={`/lotes/${lote.id}`}>Ver</Link>
-            {(lote.status === "scheduled" || lote.status === "live") &&
-              lote.bid_count === 0 && (
-                <button type="button" onClick={() => cancelar(lote)}>
-                  Cancelar
-                </button>
-              )}
+            {(lote.status === "scheduled" || lote.status === "live") && (
+              <button type="button" onClick={() => cancelar(lote)}>
+                Cancelar
+              </button>
+            )}
           </li>
         ))}
       </ul>
