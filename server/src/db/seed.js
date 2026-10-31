@@ -8,6 +8,7 @@ import { sealNewLot } from "../services/integrity.js";
 const SENHA = "123456";
 const DEPOSITO_INICIAL = 50000;
 const MINUTO = 60000;
+const DIA = 24 * 60 * MINUTO;
 
 const USUARIOS = [
   { name: "Leo", email: "leiloeiro@exemplo.com", role: "auctioneer" },
@@ -107,7 +108,9 @@ async function criarLote({ auctioneerId, especie, startsAt, endsAt }) {
     ? `especie-${especie.external_id}`
     : especie.external_id;
   const { rows: existentes } = await pool.query(
-    "SELECT id, bid_count FROM lots WHERE external_source = 'seed' AND external_id = $1",
+    `SELECT id, bid_count FROM lots
+     WHERE external_source = 'seed' AND external_id = $1
+       AND canceled_at IS NULL AND ends_at > NOW()`,
     [externalId],
   );
   if (existentes[0]) return existentes[0];
@@ -170,6 +173,7 @@ async function main() {
 
   const agora = Date.now();
   const emMinutos = (minutos) => new Date(agora + minutos * MINUTO);
+  const emDias = (dias) => new Date(agora + dias * DIA);
   const especies = await buscarEspecies();
   const lancesPorLote = [
     [
@@ -191,10 +195,8 @@ async function main() {
     const lote = await criarLote({
       auctioneerId: leiloeiro,
       especie,
-      startsAt: agendado ? emMinutos(30 + posicao * 10) : emMinutos(-5),
-      endsAt: agendado
-        ? emMinutos(120 + posicao * 10)
-        : emMinutos(20 + posicao * 15),
+      startsAt: agendado ? emDias(1 + posicao * 0.25) : emMinutos(-5),
+      endsAt: agendado ? emDias(4 + posicao * 0.25) : emDias(3 + posicao),
     });
     if (agendado) {
       agendados += 1;
