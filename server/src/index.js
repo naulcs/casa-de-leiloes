@@ -1,3 +1,4 @@
+import http from 'node:http';
 import express from 'express';
 import cors from 'cors';
 import { config } from './config.js';
@@ -7,8 +8,10 @@ import { catalogRouter } from './routes/catalog.js';
 import { lotsRouter } from './routes/lots.js';
 import { bidsRouter } from './routes/bids.js';
 import { auditRouter } from './routes/audit.js';
-
-
+import { receiptsRouter } from './routes/receipts.js';
+import { meRouter } from './routes/me.js';
+import { initRealtime } from './services/realtime.js';
+import { startSettler } from './services/settlement.js';
 
 const app = express();
 app.use(cors());
@@ -19,6 +22,17 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRouter);
+app.use('/api/wallet', walletRouter);
+app.use('/api/catalog', catalogRouter);
+app.use('/api/lots', lotsRouter);
+app.use('/api/lots', bidsRouter);
+app.use('/api/audit', auditRouter);
+app.use('/api/receipts', receiptsRouter);
+app.use('/api/me', meRouter);
+
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Rota não encontrada.' });
+});
 
 app.use((erro, req, res, next) => {
   if (erro.status && erro.status < 500) {
@@ -28,13 +42,10 @@ app.use((erro, req, res, next) => {
   res.status(500).json({ error: 'Erro interno do servidor.' });
 });
 
-app.use('/api/wallet', walletRouter);
-app.use('/api/catalog', catalogRouter);
-app.use('/api/lots', lotsRouter);
+const server = http.createServer(app);
+initRealtime(server);
+startSettler();
 
-app.use('/api/lots', bidsRouter);
-app.use('/api/audit', auditRouter);
-
-app.listen(config.port, () => {
+server.listen(config.port, () => {
   console.log(`Servidor rodando em http://localhost:${config.port}`);
 });

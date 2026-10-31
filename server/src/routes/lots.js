@@ -9,6 +9,7 @@ import {
   getAnt,
 } from '../services/inaturalist.js';
 import { sealNewLot } from '../services/integrity.js';
+import { publishLotChange } from '../services/realtime.js';
 import { LOT_FIELDS, serializeLot } from '../services/lots.js';
 
 export const lotsRouter = Router();
@@ -58,7 +59,7 @@ lotsRouter.get('/mine', ...soLeiloeiro, async (req, res) => {
     [req.user.id]
   );
   const { rows: vendas } = await pool.query(
-    `SELECT COALESCE(SUM(amount_cents), 0) AS total
+    `SELECT COALESCE(SUM(amount_cents), 0)::bigint AS total
      FROM wallet_transactions WHERE user_id = $1 AND type = 'sale'`,
     [req.user.id]
   );
@@ -203,5 +204,6 @@ lotsRouter.post('/:id/cancel', ...soLeiloeiro, async (req, res) => {
   });
 
   if (resultado.error) return res.status(resultado.status).json({ error: resultado.error });
+    publishLotChange(Number(req.params.id), { event: 'canceled' }).catch(() => {});
   res.json({ canceled: true, refunded_cents: resultado.refunded_cents });
 });
