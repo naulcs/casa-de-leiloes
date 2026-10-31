@@ -226,11 +226,12 @@ export default function Painel() {
                 ? ` — vendido por ${formatarReais(lote.result.amount_cents)}`
                 : " — sem venda")}{" "}
             <Link to={`/lotes/${lote.id}`}>Ver</Link>
-            {(lote.status === "scheduled" || lote.status === "live") && (
-              <button type="button" onClick={() => cancelar(lote)}>
-                Cancelar
-              </button>
-            )}
+            {(lote.status === "scheduled" || lote.status === "live") &&
+              lote.bid_count === 0 && (
+                <button type="button" onClick={() => cancelar(lote)}>
+                  Cancelar
+                </button>
+              )}
           </li>
         ))}
       </ul>
