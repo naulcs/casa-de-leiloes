@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import Carrossel from "../Carrossel.jsx";
 import { api } from "../api.js";
 import { formatarReais } from "../format.js";
 
@@ -39,7 +40,7 @@ export default function Arremates() {
   return (
     <section>
       <h1>Meus arremates</h1>
-      <ul className="grade">
+      <Carrossel>
         {lotes.map((lote) => (
           <li key={lote.id} className="card">
             <Link to={`/lotes/${lote.id}`}>
@@ -56,7 +57,7 @@ export default function Arremates() {
             )}
           </li>
         ))}
-      </ul>
+      </Carrossel>
     </section>
   );
 }

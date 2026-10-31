@@ -12,3 +12,7 @@ export function formatarTempo(ms) {
   const segundos = String(total % 60).padStart(2, "0");
   return `${minutos}:${segundos}`;
 }
+
+export function contarLances(quantidade) {
+  return `${quantidade} ${quantidade === 1 ? "lance" : "lances"}`;
+}

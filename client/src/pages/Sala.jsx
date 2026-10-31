@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { api, getToken } from "../api.js";
 import { useAuth } from "../auth.jsx";
-import { formatarReais, formatarTempo } from "../format.js";
+import { contarLances, formatarReais, formatarTempo } from "../format.js";
 
 function reaisParaCentavos(texto) {
   return Math.round(Number(String(texto).replace(",", ".")) * 100);
@@ -183,7 +183,7 @@ export default function Sala() {
         {formatarReais(
           lote.bid_count > 0 ? lote.current_bid_cents : lote.starting_bid_cents,
         )}{" "}
-        ({lote.bid_count} lances)
+        ({contarLances(lote.bid_count)})
       </p>
 
       {aoVivo && liderando && <p>Você está ganhando.</p>}

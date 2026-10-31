@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import Carrossel from "../Carrossel.jsx";
 import { api } from "../api.js";
-import { formatarReais } from "../format.js";
+import { contarLances, formatarReais } from "../format.js";
 
 const STATUS = {
   scheduled: "Agendado",
@@ -22,6 +23,8 @@ export default function Painel() {
   const [busca, setBusca] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [resultados, setResultados] = useState([]);
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const [temMais, setTemMais] = useState(false);
   const [escolhida, setEscolhida] = useState(null);
   const [formulario, setFormulario] = useState(FORMULARIO_VAZIO);
   const [erro, setErro] = useState("");
@@ -44,17 +47,20 @@ export default function Painel() {
     setFormulario((atual) => ({ ...atual, [campo]: valor }));
   }
 
-  async function buscar(evento) {
-    evento.preventDefault();
+  async function pesquisar(pagina) {
     setErro("");
     setMensagem("");
     setBuscando(true);
     try {
       const dados = await api(
-        `/catalog/search?q=${encodeURIComponent(busca.trim())}`,
+        `/catalog/search?q=${encodeURIComponent(busca.trim())}&page=${pagina}`,
       );
-      setResultados(dados.items);
-      setEscolhida(null);
+      setResultados((atuais) =>
+        pagina === 1 ? dados.items : [...atuais, ...dados.items],
+      );
+      setPaginaAtual(pagina);
+      setTemMais(dados.has_more);
+      if (pagina === 1) setEscolhida(null);
       if (dados.stale) {
         setMensagem("A API de formigas está fora do ar: resultados guardados.");
       }
@@ -63,6 +69,11 @@ export default function Painel() {
     } finally {
       setBuscando(false);
     }
+  }
+
+  function buscar(evento) {
+    evento.preventDefault();
+    pesquisar(1);
   }
 
   async function criarLote(evento) {
@@ -128,7 +139,7 @@ export default function Painel() {
       </form>
       {buscando && <p>Buscando...</p>}
 
-      <ul className="grade">
+      <Carrossel>
         {resultados.map((item) => (
           <li key={item.external_id} className="card">
             {item.image_url && <img src={item.image_url} alt={item.title} />}
@@ -139,7 +150,21 @@ export default function Painel() {
             </button>
           </li>
         ))}
-      </ul>
+      </Carrossel>
+      {resultados.length > 0 && (
+        <p>
+          {resultados.length} formigas encontradas.{" "}
+          {temMais && (
+            <button
+              type="button"
+              onClick={() => pesquisar(paginaAtual + 1)}
+              disabled={buscando}
+            >
+              Carregar mais
+            </button>
+          )}
+        </p>
+      )}
 
       {escolhida && (
         <form onSubmit={criarLote}>
@@ -195,7 +220,7 @@ export default function Painel() {
                 ? lote.current_bid_cents
                 : lote.starting_bid_cents,
             )}{" "}
-            ({lote.bid_count} lances)
+            ({contarLances(lote.bid_count)})
             {lote.result &&
               (lote.result.sold
                 ? ` — vendido por ${formatarReais(lote.result.amount_cents)}`

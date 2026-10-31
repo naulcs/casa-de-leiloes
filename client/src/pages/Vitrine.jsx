@@ -1,18 +1,74 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import Carrossel from "../Carrossel.jsx";
+import Formigueiro from "../Formigueiro.jsx";
 import { api } from "../api.js";
-import { formatarReais, formatarTempo } from "../format.js";
+import { contarLances, formatarReais, formatarTempo } from "../format.js";
 
-const ABAS = [
-  { valor: "live", rotulo: "Ao vivo" },
-  { valor: "scheduled", rotulo: "Agendados" },
-  { valor: "ended", rotulo: "Encerrados" },
+export const SECOES = [
+  { valor: "live", rotulo: "Ao vivo", caminho: "/ao-vivo" },
+  { valor: "scheduled", rotulo: "Agendados", caminho: "/agendados" },
+  { valor: "ended", rotulo: "Encerrados", caminho: "/encerrados" },
 ];
 
 const DOIS_MINUTOS = 2 * 60 * 1000;
 
-export default function Vitrine() {
-  const [aba, setAba] = useState("live");
+function Inicio() {
+  const [aoVivo, setAoVivo] = useState(null);
+  const titulo = useRef(null);
+
+  useEffect(() => {
+    api("/lots?status=live")
+      .then((data) => setAoVivo(data.lots.length))
+      .catch(() => setAoVivo(0));
+  }, []);
+
+  function moverLuz(evento) {
+    const caixa = titulo.current.getBoundingClientRect();
+    titulo.current.style.setProperty(
+      "--luz-x",
+      `${evento.clientX - caixa.left}px`,
+    );
+    titulo.current.style.setProperty(
+      "--luz-y",
+      `${evento.clientY - caixa.top}px`,
+    );
+  }
+
+  return (
+    <section className="hero" onPointerMove={moverLuz}>
+      <Formigueiro />
+      <div className="hero-rotulos">
+        <span>Tempo real</span>
+        <span>Lances selados</span>
+        <span>Auditoria pública</span>
+      </div>
+      <h1 className="hero-titulo letreiro" ref={titulo}>
+        FormiLance
+      </h1>
+      <p className="hero-texto">
+        O leilão de formigas ao vivo. Cada lance é selado e cada lote pode ser
+        auditado por qualquer pessoa.
+      </p>
+      <div className="hero-numeros">
+        <div>
+          <strong>{aoVivo ?? "–"}</strong>
+          <span>lotes ao vivo agora</span>
+        </div>
+        <div>
+          <strong>2 min</strong>
+          <span>de prorrogação contra lance de última hora</span>
+        </div>
+      </div>
+      <Link to="/ao-vivo" className="hero-chamada">
+        Ver lotes ao vivo
+      </Link>
+    </section>
+  );
+}
+
+function ListaDeLotes({ status }) {
+  const secao = SECOES.find((item) => item.valor === status);
   const [busca, setBusca] = useState("");
   const [termo, setTermo] = useState("");
   const [lotes, setLotes] = useState([]);
@@ -26,7 +82,7 @@ export default function Vitrine() {
   }, [busca]);
 
   useEffect(() => {
-    const params = new URLSearchParams({ status: aba });
+    const params = new URLSearchParams({ status });
     if (termo) params.set("q", termo);
 
     function carregar() {
@@ -43,7 +99,7 @@ export default function Vitrine() {
     carregar();
     const timer = setInterval(carregar, 5000);
     return () => clearInterval(timer);
-  }, [aba, termo]);
+  }, [status, termo]);
 
   useEffect(() => {
     const timer = setInterval(() => setAgora(Date.now()), 1000);
@@ -52,18 +108,7 @@ export default function Vitrine() {
 
   return (
     <section>
-      <div className="abas">
-        {ABAS.map((item) => (
-          <button
-            key={item.valor}
-            type="button"
-            onClick={() => setAba(item.valor)}
-            disabled={aba === item.valor}
-          >
-            {item.rotulo}
-          </button>
-        ))}
-      </div>
+      <h1>{secao.rotulo}</h1>
 
       <input
         type="search"
@@ -73,9 +118,9 @@ export default function Vitrine() {
       />
 
       {carregando && <p>Carregando lotes...</p>}
-      {!carregando && lotes.length === 0 && <p>Nenhum lote nesta aba.</p>}
+      {!carregando && lotes.length === 0 && <p>Nenhum lote por aqui.</p>}
 
-      <ul className="grade">
+      <Carrossel>
         {lotes.map((lote) => {
           const aoVivo = lote.status === "live";
           const restante = Date.parse(lote.ends_at) - (agora + desvio);
@@ -98,7 +143,7 @@ export default function Vitrine() {
                     : lote.starting_bid_cents,
                 )}
               </p>
-              <p>{lote.bid_count} lances</p>
+              <p>{contarLances(lote.bid_count)}</p>
               {aoVivo && (
                 <p>
                   Termina em {formatarTempo(restante)} · {lote.watchers} na sala
@@ -118,7 +163,12 @@ export default function Vitrine() {
             </li>
           );
         })}
-      </ul>
+      </Carrossel>
     </section>
   );
+}
+
+export default function Vitrine({ status }) {
+  if (!status) return <Inicio />;
+  return <ListaDeLotes key={status} status={status} />;
 }
