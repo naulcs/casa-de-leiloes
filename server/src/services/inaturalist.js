@@ -20,7 +20,18 @@ const LICENCAS = {
   "cc-by-nc-nd": "CC BY-NC-ND",
 };
 
+const POR_PAGINA = 30;
+
 const cache = new Map();
+
+export function limparNome(texto) {
+  if (!texto) return texto;
+  const limpo = texto
+    .replace(/\s*-\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return limpo.charAt(0).toUpperCase() + limpo.slice(1);
+}
 
 export class ApiUnavailableError extends Error {}
 export class ItemNotFoundError extends Error {}
@@ -44,8 +55,9 @@ async function getJson(path) {
 function normalize(taxon) {
   const foto = taxon.default_photo;
   const licenca = foto?.license_code;
-  const nomePopular =
-    taxon.preferred_common_name || taxon.english_common_name || null;
+  const nomePopular = limparNome(
+    taxon.preferred_common_name || taxon.english_common_name || null,
+  );
   const attributes = {
     "Nome científico": taxon.name,
     "Nome popular": nomePopular,
@@ -66,25 +78,25 @@ function normalize(taxon) {
   };
 }
 
-export async function searchAnts(q) {
-  const chave = q.toLowerCase();
+export async function searchAnts(q, pagina = 1) {
+  const chave = `${q.toLowerCase()}|${pagina}`;
   const guardado = cache.get(chave);
   if (guardado && Date.now() - guardado.at < CACHE_MS) {
-    return { items: guardado.items, stale: false };
+    return { items: guardado.items, hasMore: guardado.hasMore, stale: false };
   }
   try {
     const json = await getJson(
-      `/taxa?q=${encodeURIComponent(q)}&taxon_id=${FORMICIDAE}&rank=species&is_active=true&per_page=30&locale=pt-BR`,
+      `/taxa?q=${encodeURIComponent(q)}&taxon_id=${FORMICIDAE}&rank=species&is_active=true&per_page=${POR_PAGINA}&page=${pagina}&locale=pt-BR`,
     );
     const items = (json?.results ?? [])
       .map(normalize)
-      .filter((i) => i.image_url)
-      .slice(0, 12);
-    cache.set(chave, { at: Date.now(), items });
-    return { items, stale: false };
+      .filter((i) => i.image_url);
+    const hasMore = (json?.total_results ?? 0) > pagina * POR_PAGINA;
+    cache.set(chave, { at: Date.now(), items, hasMore });
+    return { items, hasMore, stale: false };
   } catch (erro) {
     if (erro instanceof ApiUnavailableError && guardado) {
-      return { items: guardado.items, stale: true };
+      return { items: guardado.items, hasMore: guardado.hasMore, stale: true };
     }
     throw erro;
   }

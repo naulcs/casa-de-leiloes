@@ -15,9 +15,13 @@ catalogRouter.get(
         .status(400)
         .json({ error: "Digite pelo menos 2 letras para buscar." });
     }
+    const pagina = Math.min(
+      Math.max(Number.parseInt(req.query.page, 10) || 1, 1),
+      50,
+    );
     try {
-      const { items, stale } = await searchAnts(q);
-      res.json({ items, stale });
+      const { items, hasMore, stale } = await searchAnts(q, pagina);
+      res.json({ items, page: pagina, has_more: hasMore, stale });
     } catch (erro) {
       if (erro instanceof ApiUnavailableError) {
         return res.status(503).json({
