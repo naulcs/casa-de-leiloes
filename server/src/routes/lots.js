@@ -9,8 +9,16 @@ import {
   getAnt,
 } from "../services/inaturalist.js";
 import { sealNewLot } from "../services/integrity.js";
-import { publishLotChange } from "../services/realtime.js";
-import { LOT_FIELDS, serializeLot } from "../services/lots.js";
+import {
+  contarPresenca,
+  publishLotChange,
+  usuariosNaSala,
+} from "../services/realtime.js";
+import {
+  LOT_FIELDS,
+  avaliarFimDoLeilao,
+  serializeLot,
+} from "../services/lots.js";
 
 export const lotsRouter = Router();
 
@@ -46,7 +54,8 @@ lotsRouter.get("/", optionalAuth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT * FROM (
        SELECT ${LOT_FIELDS},
-              (SELECT code FROM receipts r WHERE r.lot_id = lots.id AND r.winner_id = ${usuario}) AS my_receipt_code
+              (SELECT code FROM receipts r WHERE r.lot_id = lots.id AND r.winner_id = ${usuario}) AS my_receipt_code,
+              ARRAY(SELECT DISTINCT bidder_id FROM bids b WHERE b.lot_id = lots.id) AS licitantes_ids
        FROM lots WHERE canceled_at IS NULL     ) t
      ${where}
      ORDER BY CASE status WHEN 'live' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END,
@@ -55,9 +64,12 @@ lotsRouter.get("/", optionalAuth, async (req, res) => {
     params,
   );
   res.json({
+    server_time: new Date().toISOString(),
     lots: rows.map((row) => ({
       ...serializeLot(row),
       my_receipt_code: row.my_receipt_code,
+      watchers: contarPresenca(row.id),
+      ...avaliarFimDoLeilao(row.licitantes_ids, usuariosNaSala(row.id)),
     })),
   });
 });
@@ -98,12 +110,10 @@ lotsRouter.post("/", ...soLeiloeiro, async (req, res) => {
     return res.status(400).json({ error: "Escolha uma formiga para leiloar." });
   }
   if (!centavos(starting_bid_cents) || !centavos(min_increment_cents)) {
-    return res
-      .status(400)
-      .json({
-        error:
-          "Informe o lance inicial e o incremento mínimo (maiores que zero).",
-      });
+    return res.status(400).json({
+      error:
+        "Informe o lance inicial e o incremento mínimo (maiores que zero).",
+    });
   }
   if (!startsAt || !endsAt) {
     return res
@@ -193,7 +203,9 @@ lotsRouter.get("/:id", optionalAuth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT ${LOT_FIELDS}, leader_id,
             EXISTS (SELECT 1 FROM bids b WHERE b.lot_id = lots.id AND b.bidder_id = $2) AS viewer_has_bid,
+                        EXISTS (SELECT 1 FROM withdrawals w WHERE w.lot_id = lots.id AND w.user_id = $2) AS viewer_withdrawn,
                         (SELECT code FROM receipts r WHERE r.lot_id = lots.id AND r.winner_id = $2) AS viewer_receipt_code,
+            ARRAY(SELECT DISTINCT bidder_id FROM bids b WHERE b.lot_id = lots.id) AS licitantes_ids,
             NOW() AS server_time
      FROM lots WHERE id = $1`,
     [req.params.id, req.user?.id ?? 0],
@@ -202,11 +214,14 @@ lotsRouter.get("/:id", optionalAuth, async (req, res) => {
   if (!row) return res.status(404).json({ error: "Lote não encontrado." });
   res.json({
     lot: serializeLot(row),
+    watchers: contarPresenca(row.id),
+    fim: avaliarFimDoLeilao(row.licitantes_ids, usuariosNaSala(row.id)),
     server_time: row.server_time,
     viewer: {
       is_leader: Boolean(req.user) && row.leader_id === req.user.id,
       has_bid: row.viewer_has_bid,
-            receipt_code: row.viewer_receipt_code,
+      withdrawn: row.viewer_withdrawn,
+      receipt_code: row.viewer_receipt_code,
     },
   });
 });

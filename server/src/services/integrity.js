@@ -102,9 +102,10 @@ export function verifyLot(lot, bids) {
   if ((lot.leader_id ?? null) !== (ultimo?.bidder_id ?? null)) {
     problems.push("O líder do lote não confere com o histórico.");
   }
-  if (
+    if (
     ultimo &&
-    new Date(lot.ends_at).getTime() !== new Date(ultimo.ends_at_after).getTime()
+    new Date(lot.ends_at).getTime() !==
+      new Date(lot.early_end_at ?? ultimo.ends_at_after).getTime()
   ) {
     problems.push("O horário de encerramento do lote foi alterado.");
   }

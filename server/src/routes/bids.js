@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { pool } from "../db/pool.js";
 import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
-import { BidRejected, placeBid } from "../services/bidding.js";
+import { BidRejected, placeBid, withdrawFromLot } from "../services/bidding.js";
 import { bidderAlias } from "../services/integrity.js";
-import { announceBid } from "../services/realtime.js";
+import { announceBid, publishLotChange } from "../services/realtime.js";
 import { LOT_FIELDS, serializeLot } from "../services/lots.js";
 import { getWalletSummary } from "../services/wallet.js";
 
@@ -83,3 +83,31 @@ bidsRouter.get("/:id/bids", optionalAuth, async (req, res) => {
     })),
   });
 });
+
+bidsRouter.post(
+  "/:id/withdraw",
+  requireAuth,
+  requireRole("bidder"),
+  async (req, res) => {
+    if (!idValido(req.params.id))
+      return res.status(404).json({ error: "Lote não encontrado." });
+    try {
+      await withdrawFromLot({
+        lotId: Number(req.params.id),
+        userId: req.user.id,
+      });
+      publishLotChange(Number(req.params.id), { event: "withdrawn" }).catch(
+        () => {},
+      );
+      res.json({ withdrawn: true });
+    } catch (erro) {
+      if (erro instanceof BidRejected) {
+        const status = erro.code === "not_found" ? 404 : 409;
+        return res
+          .status(status)
+          .json({ error: erro.message, code: erro.code });
+      }
+      throw erro;
+    }
+  },
+);

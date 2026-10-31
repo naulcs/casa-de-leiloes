@@ -6,8 +6,8 @@ export const STATUS_SQL = `CASE
 END`;
 
 export const LOT_FIELDS = `id, title, attributes, starting_bid_cents, min_increment_cents,
-  starts_at, ends_at, current_bid_cents, bid_count, settled_at,
-  EXISTS (SELECT 1 FROM lot_images li WHERE li.lot_id = lots.id) AS has_image,
+  starts_at, ends_at, current_bid_cents, bid_count, settled_at, early_end_at,
+    EXISTS (SELECT 1 FROM lot_images li WHERE li.lot_id = lots.id) AS has_image,
   ${STATUS_SQL} AS status`;
 
 export function nextMinBid(lot) {
@@ -31,5 +31,16 @@ export function serializeLot(row) {
     min_next_bid_cents: nextMinBid(row),
     status: row.status,
     settled: Boolean(row.settled_at),
+  };
+}
+
+export function avaliarFimDoLeilao(licitantes, presentes) {
+  const naSala = licitantes.filter((id) => presentes.has(id)).length;
+  return {
+    licitantes: licitantes.length,
+    licitantes_na_sala: naSala,
+    encerra_no_minuto_final: licitantes.length >= 2 && naSala >= 1,
+    aviso_minuto_final:
+      licitantes.length >= 2 && naSala >= 1 && naSala < licitantes.length,
   };
 }

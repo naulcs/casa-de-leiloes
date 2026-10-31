@@ -42,6 +42,13 @@ export function placeBid({ lotId, userId, amountCents }) {
         "Você já está ganhando este lote.",
       );
     }
+    const { rows: desistiu } = await client.query(
+      "SELECT 1 FROM withdrawals WHERE lot_id = $1 AND user_id = $2",
+      [lotId, userId],
+    );
+    if (desistiu[0]) {
+      throw new BidRejected("withdrawn", "Você desistiu deste lote.");
+    }
     const minimo = nextMinBid(lot);
     if (amountCents < minimo) {
       throw new BidRejected(
@@ -112,5 +119,51 @@ export function placeBid({ lotId, userId, amountCents }) {
     );
 
     return { bid, extended: estende, previousLeaderId: lot.leader_id };
+  });
+}
+
+export function withdrawFromLot({ lotId, userId }) {
+  return withTransaction(async (client) => {
+    const { rows } = await client.query(
+      "SELECT *, clock_timestamp() AS now FROM lots WHERE id = $1 FOR UPDATE",
+      [lotId],
+    );
+    const lot = rows[0];
+    if (!lot) throw new BidRejected("not_found", "Lote não encontrado.");
+    if (lot.canceled_at)
+      throw new BidRejected("canceled", "Este lote foi cancelado.");
+    if (lot.settled_at || lot.now >= lot.ends_at) {
+      throw new BidRejected("ended", "Este lote já foi encerrado.");
+    }
+    if (lot.leader_id === userId) {
+      throw new BidRejected(
+        "leading",
+        "Quem está ganhando não pode desistir do lote.",
+      );
+    }
+
+    const { rows: participou } = await client.query(
+      "SELECT 1 FROM bids WHERE lot_id = $1 AND bidder_id = $2 LIMIT 1",
+      [lotId, userId],
+    );
+    if (!participou[0]) {
+      throw new BidRejected(
+        "not_bidder",
+        "Você ainda não deu lances neste lote.",
+      );
+    }
+
+    const { rows: jaDesistiu } = await client.query(
+      "SELECT 1 FROM withdrawals WHERE lot_id = $1 AND user_id = $2",
+      [lotId, userId],
+    );
+    if (jaDesistiu[0]) {
+      throw new BidRejected("withdrawn", "Você já desistiu deste lote.");
+    }
+
+    await client.query(
+      "INSERT INTO withdrawals (lot_id, user_id) VALUES ($1, $2)",
+      [lotId, userId],
+    );
   });
 }

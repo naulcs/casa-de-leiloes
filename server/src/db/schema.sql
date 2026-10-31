@@ -76,3 +76,12 @@ CREATE TABLE IF NOT EXISTS lot_images (
   content_type TEXT NOT NULL,
   data         BYTEA NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS withdrawals (
+  lot_id     INT NOT NULL REFERENCES lots(id),
+  user_id    INT NOT NULL REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (lot_id, user_id)
+);
+
+ALTER TABLE lots ADD COLUMN IF NOT EXISTS early_end_at TIMESTAMPTZ;

@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { pool } from "../db/pool.js";
 import { withTransaction } from "../db/tx.js";
-import { emitToUser, publishLotChange } from "./realtime.js";
+import { avaliarFimDoLeilao } from "./lots.js";
+import { emitToUser, publishLotChange, usuariosNaSala } from "./realtime.js";
 
 export function settleLot(lotId) {
   return withTransaction(async (client) => {
@@ -68,6 +69,27 @@ export function settleLot(lotId) {
   });
 }
 
+async function fecharNoMinutoFinal() {
+  const { rows } = await pool.query(
+    `SELECT id, ARRAY(SELECT DISTINCT bidder_id FROM bids b WHERE b.lot_id = lots.id) AS licitantes
+     FROM lots
+     WHERE settled_at IS NULL AND canceled_at IS NULL
+       AND starts_at <= NOW() AND ends_at > NOW()
+       AND ends_at <= NOW() + INTERVAL '59 seconds'`,
+  );
+  for (const { id, licitantes } of rows) {
+    const fim = avaliarFimDoLeilao(licitantes, usuariosNaSala(id));
+    if (!fim.encerra_no_minuto_final) continue;
+    await pool.query(
+      `UPDATE lots SET ends_at = x.t, early_end_at = x.t
+       FROM (SELECT clock_timestamp() AS t) AS x
+       WHERE lots.id = $1 AND lots.ends_at > clock_timestamp()`,
+      [id],
+    );
+    await publishLotChange(id, { event: "closing" });
+  }
+}
+
 async function liquidarPendentes() {
   const { rows } = await pool.query(
     `SELECT id FROM lots
@@ -97,6 +119,7 @@ export function startSettler() {
     if (rodando) return;
     rodando = true;
     try {
+      await fecharNoMinutoFinal();
       await liquidarPendentes();
     } catch (erro) {
       console.error("Falha no liquidador:", erro.message);
