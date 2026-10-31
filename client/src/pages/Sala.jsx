@@ -3,19 +3,13 @@ import { Link, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { api, getToken } from "../api.js";
 import { useAuth } from "../auth.jsx";
-import { formatarReais } from "../format.js";
+import { formatarReais, formatarTempo } from "../format.js";
 
 function reaisParaCentavos(texto) {
   return Math.round(Number(String(texto).replace(",", ".")) * 100);
 }
 
-function formatarTempo(ms) {
-  if (ms <= 0) return "00:00";
-  const total = Math.floor(ms / 1000);
-  const minutos = String(Math.floor(total / 60)).padStart(2, "0");
-  const segundos = String(total % 60).padStart(2, "0");
-  return `${minutos}:${segundos}`;
-}
+const DOIS_MINUTOS = 2 * 60 * 1000;
 
 export default function Sala() {
   const { id } = useParams();
@@ -30,6 +24,10 @@ export default function Sala() {
   const [comprovante, setComprovante] = useState(null);
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [temLance, setTemLance] = useState(false);
+  const [desistiu, setDesistiu] = useState(false);
+  const [pessoas, setPessoas] = useState(0);
+  const [fim, setFim] = useState(null);
 
   useEffect(() => {
     let ativo = true;
@@ -38,6 +36,10 @@ export default function Sala() {
         if (!ativo) return;
         setLote(dadosLote.lot);
         setLiderando(dadosLote.viewer.is_leader);
+        setTemLance(dadosLote.viewer.has_bid);
+        setDesistiu(dadosLote.viewer.withdrawn);
+        setPessoas(dadosLote.watchers);
+        setFim(dadosLote.fim);
         setComprovante(dadosLote.viewer.receipt_code);
         setDesvio(Date.parse(dadosLote.server_time) - Date.now());
         setLances(dadosLances.bids);
@@ -66,6 +68,7 @@ export default function Sala() {
       setDesvio(Date.parse(dados.server_time) - Date.now());
       if (dados.event === "bid") {
         recarregarLances();
+        api(`/lots/${id}`).then((detalhe) => setFim(detalhe.fim));
         if (dados.extended) {
           setAviso("Lance nos últimos 2 minutos: o tempo foi prorrogado.");
         }
@@ -83,6 +86,12 @@ export default function Sala() {
       if (dados.lot_id !== idNumerico) return;
       setComprovante(dados.receipt_code);
       setAviso("Parabéns, você ganhou este lote!");
+    });
+
+    socket.on("lot:presence", (dados) => {
+      if (dados.lot_id !== idNumerico) return;
+      setPessoas(dados.watchers);
+      api(`/lots/${id}`).then((dadosLote) => setFim(dadosLote.fim));
     });
 
     return () => {
@@ -112,6 +121,7 @@ export default function Sala() {
       });
       setLote(dados.lot);
       setLiderando(true);
+      setTemLance(true);
       setValor("");
       setAviso(
         dados.extended
@@ -124,18 +134,39 @@ export default function Sala() {
       setEnviando(false);
     }
   }
-
+  async function desistir() {
+    if (
+      !window.confirm(
+        "Desistir deste lote? Depois disso você não poderá mais dar lances nele.",
+      )
+    ) {
+      return;
+    }
+    setErro("");
+    try {
+      await api(`/lots/${id}/withdraw`, { method: "POST" });
+      setDesistiu(true);
+      setAviso("Você desistiu deste lote.");
+    } catch (falha) {
+      setErro(falha.message);
+    }
+  }
   if (!lote) {
     return erro ? <p role="alert">{erro}</p> : <p>Carregando lote...</p>;
   }
 
   const restante = Date.parse(lote.ends_at) - (agora + desvio);
   const aoVivo = lote.status === "live";
-  const podeDarLance = aoVivo && user?.role === "bidder";
+  const podeDarLance = aoVivo && user?.role === "bidder" && !desistiu;
+  const podeDesistir =
+    aoVivo && user?.role === "bidder" && temLance && !liderando && !desistiu;
 
   return (
     <section className="sala">
       <Link to="/">Voltar à vitrine</Link>
+      {lote.bid_count > 0 && (
+        <Link to={`/auditoria/${lote.id}`}>Ver auditoria do lote</Link>
+      )}
       <h1>{lote.title}</h1>
       {lote.image_url && <img src={lote.image_url} alt={lote.title} />}
       <p>{lote.attributes?.["Nome científico"]}</p>
@@ -156,6 +187,13 @@ export default function Sala() {
       </p>
 
       {aoVivo && liderando && <p>Você está ganhando.</p>}
+      {aoVivo && <p>{pessoas} pessoas acompanhando este lote.</p>}
+      {aoVivo && fim?.aviso_minuto_final && restante <= DOIS_MINUTOS && (
+        <p role="status">
+          Quando chegar no minuto final, o leilão será encerrado: não há mais
+          participantes e só uma pessoa está ganhando. Ela vence.
+        </p>
+      )}
       {aviso && <p role="status">{aviso}</p>}
       {comprovante && (
         <p>
@@ -178,6 +216,11 @@ export default function Sala() {
             Dar lance
           </button>
         </form>
+      )}
+      {podeDesistir && (
+        <button type="button" onClick={desistir}>
+          Desistir deste lote
+        </button>
       )}
       {aoVivo && !user && (
         <p>
