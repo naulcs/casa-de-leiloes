@@ -1,4 +1,4 @@
-import { pool } from '../db/pool.js';
+import { pool } from "../db/pool.js";
 
 export async function getWalletSummary(userId, db = pool) {
   const { rows } = await db.query(
@@ -12,10 +12,14 @@ export async function getWalletSummary(userId, db = pool) {
             ), 0)::bigint AS committed_cents
      FROM users u
      WHERE u.id = $1`,
-    [userId]
+    [userId],
   );
   if (!rows[0]) return null;
   const total = Number(rows[0].total_cents);
   const committed = Number(rows[0].committed_cents);
-  return { total_cents: total, committed_cents: committed, available_cents: total - committed };
+  return {
+    total_cents: total,
+    committed_cents: committed,
+    available_cents: total - committed,
+  };
 }

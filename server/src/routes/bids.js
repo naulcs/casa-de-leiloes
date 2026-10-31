@@ -21,12 +21,10 @@ bidsRouter.post(
       return res.status(404).json({ error: "Lote não encontrado." });
     const amount = req.body?.amount_cents;
     if (!Number.isInteger(amount) || amount <= 0 || amount > MAX_CENTS) {
-      return res
-        .status(400)
-        .json({
-          error: "Informe um valor de lance válido.",
-          code: "invalid_amount",
-        });
+      return res.status(400).json({
+        error: "Informe um valor de lance válido.",
+        code: "invalid_amount",
+      });
     }
 
     try {
@@ -37,7 +35,10 @@ bidsRouter.post(
       });
       const { bid, extended } = resultado;
       announceBid(resultado);
-            const { rows } = await pool.query(`SELECT ${LOT_FIELDS} FROM lots WHERE id = $1`, [bid.lot_id]);
+      const { rows } = await pool.query(
+        `SELECT ${LOT_FIELDS} FROM lots WHERE id = $1`,
+        [bid.lot_id],
+      );
       res.status(201).json({
         bid: {
           seq: bid.seq,

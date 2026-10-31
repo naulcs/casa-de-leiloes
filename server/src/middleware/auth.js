@@ -1,19 +1,19 @@
-import jwt from 'jsonwebtoken';
-import { config } from '../config.js';
+import jwt from "jsonwebtoken";
+import { config } from "../config.js";
 
 if (!config.jwtSecret) {
-  throw new Error('Faltou JWT_SECRET no arquivo server/.env');
+  throw new Error("Faltou JWT_SECRET no arquivo server/.env");
 }
 
 export function signToken(user) {
   return jwt.sign({ sub: String(user.id), role: user.role }, config.jwtSecret, {
-    expiresIn: '7d',
+    expiresIn: "7d",
   });
 }
 
 function readToken(req) {
-  const header = req.headers.authorization || '';
-  return header.startsWith('Bearer ') ? header.slice(7) : null;
+  const header = req.headers.authorization || "";
+  return header.startsWith("Bearer ") ? header.slice(7) : null;
 }
 
 function readUser(token) {
@@ -24,27 +24,27 @@ function readUser(token) {
 export function requireAuth(req, res, next) {
   const token = readToken(req);
   if (!token) {
-    return res.status(401).json({ error: 'Faça login para continuar.' });
+    return res.status(401).json({ error: "Faça login para continuar." });
   }
   try {
     req.user = readUser(token);
     next();
-    } catch (erro) {
-    const expirou = erro.name === 'TokenExpiredError';
+  } catch (erro) {
+    const expirou = erro.name === "TokenExpiredError";
     res.status(401).json({
       error: expirou
-        ? 'Sessão expirada. Faça login novamente.'
-        : 'Token inválido. Faça login novamente.',
+        ? "Sessão expirada. Faça login novamente."
+        : "Token inválido. Faça login novamente.",
     });
-  }}
+  }
+}
 
 export function optionalAuth(req, res, next) {
   const token = readToken(req);
   if (token) {
     try {
       req.user = readUser(token);
-    } catch {
-    }
+    } catch {}
   }
   next();
 }
@@ -52,7 +52,9 @@ export function optionalAuth(req, res, next) {
 export function requireRole(role) {
   return (req, res, next) => {
     if (req.user?.role !== role) {
-      return res.status(403).json({ error: 'Você não tem permissão para isso.' });
+      return res
+        .status(403)
+        .json({ error: "Você não tem permissão para isso." });
     }
     next();
   };

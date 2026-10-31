@@ -1,28 +1,29 @@
-import { Router } from 'express';
-import { pool } from '../db/pool.js';
-import { bidderAlias, verifyLot } from '../services/integrity.js';
-import { LOT_FIELDS } from '../services/lots.js';
+import { Router } from "express";
+import { pool } from "../db/pool.js";
+import { bidderAlias, verifyLot } from "../services/integrity.js";
+import { LOT_FIELDS } from "../services/lots.js";
 
 export const auditRouter = Router();
 
 const METODO =
-  'Cada lance recebe um selo (HMAC-SHA256) calculado com todos os seus dados e com o selo do lance ' +
-  'anterior, formando uma corrente. O lote guarda o selo do último lance e a contagem de lances, também ' +
-  'assinados. O segredo da assinatura fica fora do banco: quem alterar, remover ou inserir um lance direto ' +
-  'no banco não consegue recalcular os selos, e a verificação abaixo aponta a diferença.';
+  "Cada lance recebe um selo (HMAC-SHA256) calculado com todos os seus dados e com o selo do lance " +
+  "anterior, formando uma corrente. O lote guarda o selo do último lance e a contagem de lances, também " +
+  "assinados. O segredo da assinatura fica fora do banco: quem alterar, remover ou inserir um lance direto " +
+  "no banco não consegue recalcular os selos, e a verificação abaixo aponta a diferença.";
 
-auditRouter.get('/:id', async (req, res) => {
-  if (!/^\d{1,9}$/.test(req.params.id)) return res.status(404).json({ error: 'Lote não encontrado.' });
+auditRouter.get("/:id", async (req, res) => {
+  if (!/^\d{1,9}$/.test(req.params.id))
+    return res.status(404).json({ error: "Lote não encontrado." });
   const { rows } = await pool.query(
     `SELECT ${LOT_FIELDS}, leader_id, head_hash, head_seal FROM lots WHERE id = $1`,
-    [req.params.id]
+    [req.params.id],
   );
   const lot = rows[0];
-  if (!lot) return res.status(404).json({ error: 'Lote não encontrado.' });
+  if (!lot) return res.status(404).json({ error: "Lote não encontrado." });
 
   const { rows: bids } = await pool.query(
-    'SELECT * FROM bids WHERE lot_id = $1 ORDER BY seq, id',
-    [lot.id]
+    "SELECT * FROM bids WHERE lot_id = $1 ORDER BY seq, id",
+    [lot.id],
   );
   const { intact, problems } = verifyLot(lot, bids);
 
