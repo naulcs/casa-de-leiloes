@@ -25,7 +25,7 @@ const data = (v) => {
   return d && !Number.isNaN(d.getTime()) ? d : null;
 };
 
-lotsRouter.get("/", async (req, res) => {
+lotsRouter.get("/", optionalAuth, async (req, res) => {
   const params = [];
   const filtros = [];
   const status = req.query.status;
@@ -41,18 +41,25 @@ lotsRouter.get("/", async (req, res) => {
     );
   }
   const where = filtros.length ? `WHERE ${filtros.join(" AND ")}` : "";
-
+  params.push(req.user?.id ?? 0);
+  const usuario = `$${params.length}`;
   const { rows } = await pool.query(
     `SELECT * FROM (
-       SELECT ${LOT_FIELDS} FROM lots WHERE canceled_at IS NULL
-     ) t
+       SELECT ${LOT_FIELDS},
+              (SELECT code FROM receipts r WHERE r.lot_id = lots.id AND r.winner_id = ${usuario}) AS my_receipt_code
+       FROM lots WHERE canceled_at IS NULL     ) t
      ${where}
      ORDER BY CASE status WHEN 'live' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END,
               (CASE WHEN status = 'ended' THEN ends_at END) DESC NULLS LAST,
               (CASE WHEN status = 'live' THEN ends_at WHEN status = 'scheduled' THEN starts_at END) ASC`,
     params,
   );
-  res.json({ lots: rows.map(serializeLot) });
+  res.json({
+    lots: rows.map((row) => ({
+      ...serializeLot(row),
+      my_receipt_code: row.my_receipt_code,
+    })),
+  });
 });
 
 lotsRouter.get("/mine", ...soLeiloeiro, async (req, res) => {
@@ -186,6 +193,7 @@ lotsRouter.get("/:id", optionalAuth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT ${LOT_FIELDS}, leader_id,
             EXISTS (SELECT 1 FROM bids b WHERE b.lot_id = lots.id AND b.bidder_id = $2) AS viewer_has_bid,
+                        (SELECT code FROM receipts r WHERE r.lot_id = lots.id AND r.winner_id = $2) AS viewer_receipt_code,
             NOW() AS server_time
      FROM lots WHERE id = $1`,
     [req.params.id, req.user?.id ?? 0],
@@ -198,6 +206,7 @@ lotsRouter.get("/:id", optionalAuth, async (req, res) => {
     viewer: {
       is_leader: Boolean(req.user) && row.leader_id === req.user.id,
       has_bid: row.viewer_has_bid,
+            receipt_code: row.viewer_receipt_code,
     },
   });
 });
