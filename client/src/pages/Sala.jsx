@@ -157,7 +157,20 @@ export default function Sala() {
 
   const restante = Date.parse(lote.ends_at) - (agora + desvio);
   const aoVivo = lote.status === "live";
-  const podeDarLance = aoVivo && user?.role === "bidder" && !desistiu;
+  const podeDarLance =
+    lote.status !== "canceled" && user?.role === "bidder" && !desistiu;
+  const melhores = new Map();
+  for (const lance of lances) {
+    const atual = melhores.get(lance.bidder);
+    if (!atual || lance.amount_cents > atual.valor) {
+      melhores.set(lance.bidder, {
+        valor: lance.amount_cents,
+        meu: lance.mine,
+      });
+    }
+  }
+  const ranking = [...melhores.values()].sort((a, b) => b.valor - a.valor);
+  const minhaPosicao = ranking.findIndex((item) => item.meu) + 1;
   const podeDesistir =
     aoVivo && user?.role === "bidder" && temLance && !liderando && !desistiu;
 
@@ -187,6 +200,23 @@ export default function Sala() {
       </p>
 
       {aoVivo && liderando && <p>Você está ganhando.</p>}
+      {minhaPosicao > 0 && (
+        <p>
+          Sua posição: {minhaPosicao}º de {ranking.length}{" "}
+          {ranking.length === 1 ? "licitante" : "licitantes"}.
+        </p>
+      )}
+      {lote.status === "scheduled" && user?.role === "bidder" && (
+        <p role="status">
+          Este lote ainda não começou. Os lances abrem em{" "}
+          {new Date(lote.starts_at).toLocaleString("pt-BR")}.
+        </p>
+      )}
+      {lote.status === "ended" && user?.role === "bidder" && (
+        <p role="status">
+          Este lote já foi encerrado e não aceita mais lances.
+        </p>
+      )}
       {aoVivo && <p>{pessoas} pessoas acompanhando este lote.</p>}
       {aoVivo && fim?.aviso_minuto_final && restante <= DOIS_MINUTOS && (
         <p role="status">

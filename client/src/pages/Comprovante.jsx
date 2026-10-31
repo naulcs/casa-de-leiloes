@@ -7,6 +7,7 @@ export default function Comprovante() {
   const { code } = useParams();
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
+  const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
     let ativo = true;
@@ -28,9 +29,33 @@ export default function Comprovante() {
   const { receipt, lot, audit } = dados;
   const integro = audit.intact && audit.matches_receipt;
 
+  async function compartilhar() {
+    const link = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Comprovante FormiLance", url: link });
+        return;
+      } catch {
+        return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiado(true);
+    } catch {
+      window.prompt("Copie o link do comprovante:", link);
+    }
+  }
+
   return (
     <section className="comprovante">
       <h1>Comprovante de arremate</h1>
+      <p>
+        <button type="button" onClick={compartilhar}>
+          Compartilhar comprovante
+        </button>{" "}
+        {copiado && <span>Link copiado.</span>}
+      </p>
       {lot.image_url && <img src={lot.image_url} alt={lot.title} />}
       <h2>{lot.title}</h2>
       <p>{lot.attributes?.["Nome científico"]}</p>
