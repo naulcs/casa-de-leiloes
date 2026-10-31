@@ -38,6 +38,7 @@ export default function Sala() {
         if (!ativo) return;
         setLote(dadosLote.lot);
         setLiderando(dadosLote.viewer.is_leader);
+        setComprovante(dadosLote.viewer.receipt_code);
         setDesvio(Date.parse(dadosLote.server_time) - Date.now());
         setLances(dadosLances.bids);
       })

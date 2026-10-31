@@ -72,6 +72,11 @@ export default function Vitrine() {
               )}
             </p>
             <p>{lote.bid_count} lances</p>
+            {lote.my_receipt_code && (
+              <Link to={`/comprovantes/${lote.my_receipt_code}`}>
+                Ver comprovante
+              </Link>
+            )}
           </li>
         ))}
       </ul>

@@ -1,5 +1,6 @@
 import { Link, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth.jsx";
+import Arremates from "./pages/Arremates.jsx";
 import Comprovante from "./pages/Comprovante.jsx";
 import Login from "./pages/Login.jsx";
 import Sala from "./pages/Sala.jsx";
@@ -17,6 +18,9 @@ export default function App() {
         {user ? (
           <>
             <span>{user.name}</span>
+            {user.role === "bidder" && (
+              <Link to="/arremates">Meus arremates</Link>
+            )}
             <button onClick={sair}>Sair</button>
           </>
         ) : (
@@ -29,6 +33,7 @@ export default function App() {
           <Route path="/entrar" element={<Login />} />
           <Route path="/lotes/:id" element={<Sala />} />
           <Route path="/comprovantes/:code" element={<Comprovante />} />
+          <Route path="/arremates" element={<Arremates />} />
         </Routes>
       </main>
     </>
