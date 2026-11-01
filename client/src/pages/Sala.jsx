@@ -70,7 +70,9 @@ export default function Sala() {
         recarregarLances();
         api(`/lots/${id}`).then((detalhe) => setFim(detalhe.fim));
         if (dados.extended) {
-          setAviso("Lance nos últimos 2 minutos: o tempo foi prorrogado.");
+          setAviso(
+            "Lance nos últimos 2 minutos: o lote agora termina 2 minutos depois dele.",
+          );
         }
       }
       if (dados.event === "canceled") setAviso("Este lote foi cancelado.");
@@ -125,7 +127,7 @@ export default function Sala() {
       setValor("");
       setAviso(
         dados.extended
-          ? "Lance aceito. O tempo foi prorrogado em 2 minutos."
+          ? "Lance aceito. O lote agora termina 2 minutos depois do seu lance."
           : "Lance aceito. Você está liderando.",
       );
     } catch (falha) {

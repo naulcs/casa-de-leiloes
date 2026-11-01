@@ -20,7 +20,7 @@ function Inicio() {
   useEffect(() => {
     api("/lots?status=live")
       .then((data) => setAoVivo(data.lots.length))
-      .catch(() => setAoVivo(0));
+      .catch(() => setAoVivo(null));
   }, []);
 
   function moverLuz(evento) {
@@ -73,6 +73,7 @@ function ListaDeLotes({ status }) {
   const [termo, setTermo] = useState("");
   const [lotes, setLotes] = useState([]);
   const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
   const [desvio, setDesvio] = useState(0);
   const [agora, setAgora] = useState(Date.now());
 
@@ -90,8 +91,13 @@ function ListaDeLotes({ status }) {
         .then((data) => {
           setLotes(data.lots);
           setDesvio(Date.parse(data.server_time) - Date.now());
+          setErro("");
         })
-        .catch(() => {})
+        .catch(() =>
+          setErro(
+            "Não foi possível carregar os lotes agora. Tentando de novo em alguns segundos...",
+          ),
+        )
         .finally(() => setCarregando(false));
     }
 
@@ -118,7 +124,10 @@ function ListaDeLotes({ status }) {
       />
 
       {carregando && <p>Carregando lotes...</p>}
-      {!carregando && lotes.length === 0 && <p>Nenhum lote por aqui.</p>}
+      {erro && <p role="alert">{erro}</p>}
+      {!carregando && !erro && lotes.length === 0 && (
+        <p>Nenhum lote por aqui.</p>
+      )}
 
       <Carrossel>
         {lotes.map((lote) => {

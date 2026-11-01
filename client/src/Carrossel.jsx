@@ -1,7 +1,11 @@
 import { Children, cloneElement, useEffect, useRef, useState } from "react";
 
 const INTERVALO = 2500;
-const VISIVEIS = 5;
+function quantosCabem(largura) {
+  if (largura >= 760) return 5;
+  if (largura >= 640) return 4;
+  return 3;
+}
 
 export default function Carrossel({ children }) {
   const itens = Children.toArray(children);
@@ -9,9 +13,31 @@ export default function Carrossel({ children }) {
   const [atual, setAtual] = useState(0);
   const [pausado, setPausado] = useState(false);
   const toqueInicial = useRef(null);
+  const area = useRef(null);
+  const [visiveis, setVisiveis] = useState(5);
+  const vazio = total === 0;
 
   const destaque = total > 0 ? Math.min(atual, total - 1) : 0;
-  const inicio = Math.max(0, Math.min(destaque - 1, total - VISIVEIS));
+  const inicio = Math.max(0, Math.min(destaque - 1, total - visiveis));
+
+  useEffect(() => {
+    const elemento = area.current;
+    if (!elemento) return;
+
+    function medir() {
+      const estilo = getComputedStyle(elemento);
+      const largura =
+        elemento.clientWidth -
+        parseFloat(estilo.paddingLeft) -
+        parseFloat(estilo.paddingRight);
+      setVisiveis(quantosCabem(largura));
+    }
+
+    medir();
+    const observador = new ResizeObserver(medir);
+    observador.observe(elemento);
+    return () => observador.disconnect();
+  }, [vazio]);
 
   useEffect(() => {
     if (pausado || total < 2) return;
@@ -41,13 +67,14 @@ export default function Carrossel({ children }) {
   return (
     <div
       className="galeria"
+      ref={area}
       onMouseEnter={() => setPausado(true)}
       onMouseLeave={() => setPausado(false)}
       onPointerDown={aoTocar}
       onPointerUp={aoSoltar}
     >
       <ul className="galeria-fileira">
-        {itens.slice(inicio, inicio + VISIVEIS).map((item, posicao) => {
+        {itens.slice(inicio, inicio + visiveis).map((item, posicao) => {
           const indice = inicio + posicao;
           const aberto = indice === destaque;
           return cloneElement(item, {

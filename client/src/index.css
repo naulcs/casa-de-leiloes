@@ -549,7 +549,7 @@ code {
   display: flex;
   justify-content: center;
   gap: 16px;
-  height: 500px;
+  min-height: 500px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -558,7 +558,6 @@ code {
 .galeria-cartao.card {
   position: relative;
   flex: 0 0 96px;
-  height: 100%;
   min-width: 0;
   padding: 0;
   overflow: visible;
@@ -576,7 +575,8 @@ code {
 }
 
 .galeria-cartao.aberto {
-  flex-basis: min(420px, 100%);
+  flex: 0 1 420px;
+  padding-bottom: 64px;
   cursor: default;
 }
 
@@ -731,8 +731,11 @@ code {
   }
 
   .galeria-cartao.card {
-    flex-basis: 34px;
     border-radius: 18px;
+  }
+
+  .galeria-cartao.card:not(.aberto) {
+    flex-basis: 34px;
   }
 
   .galeria-cartao::before {

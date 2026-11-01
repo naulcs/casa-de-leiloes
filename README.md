@@ -236,6 +236,8 @@ Tabelas (`server/src/db/schema.sql`):
 
 O **status** do lote (agendado, ao vivo, encerrado, cancelado) não é guardado: é calculado pelas datas em cada consulta.
 
+Além das chaves e campos únicos, há índices para as consultas mais frequentes: lances por licitante ("Meus arremates"), lotes ativos por líder (saldo comprometido), lotes por leiloeiro (painel), extrato da carteira e lotes pendentes de liquidação.
+
 ---
 
 ## Dados de demonstração (seed)
@@ -261,6 +263,7 @@ npm test
 Os testes automatizados (`server/test/regras.test.js`) cobrem as regras que não dependem do banco:
 
 - lance mínimo (primeiro lance e lances seguintes);
+- anti-sniping (lance a 10 s e a 1m59s do fim, com 2 minutos e com mais de 2 minutos restantes);
 - regra de encerramento no minuto final (sem licitantes, com um, com dois, com e sem pessoas na sala);
 - verificação do histórico: íntegro, valor alterado detectado e encerramento antecipado aceito como legítimo.
 
@@ -316,7 +319,7 @@ Depois do primeiro deploy, rode `npm run db:init` e `npm run db:seed` apontando 
 - **Comprometido** é calculado, não guardado: soma dos lances em que o licitante lidera, em lotes não cancelados e não liquidados. Ao ser superado, o valor volta ao disponível na hora, sem estorno manual.
 
 **Anti-sniping**
-- Um lance aceito nos **últimos 2 minutos** soma mais 2 minutos ao fim atual do lote.
+- Um lance aceito nos **últimos 2 minutos** faz o lote terminar **2 minutos depois desse lance**. Exemplo: lance a 10 segundos do fim → o lote passa a terminar 2 minutos depois do lance. Lances com mais de 2 minutos restantes não mudam o fim.
 
 **Liquidação**
 - Um processo verifica a cada 2 segundos os lotes encerrados. Com vencedor: debita o vencedor, credita o leiloeiro, registra no extrato dos dois e gera o comprovante. Sem lances: encerra sem vencedor.
@@ -416,7 +419,7 @@ Todas começam com `/api`. 🔒 = exige login.
 - **Status calculado pelas datas**, nunca guardado: não há como o status ficar desatualizado.
 - **Saldo comprometido calculado**: superar alguém libera o saldo dele na hora, sem rotina de estorno.
 - **Estorno automático pelo saldo calculado**: como o saldo comprometido é calculado a partir dos lotes ativos, cancelar um lote com lances libera o valor do líder no mesmo instante, sem lançamento de estorno no extrato.
-- **Anti-sniping literal**: o lance nos 2 minutos finais soma 2 minutos ao fim **atual**.
+- **Anti-sniping pelo momento do lance**: o PDF diz que o lance nos 2 minutos finais "estende o fim do lote para +2 minutos". A leitura adotada é que o fim **passa a ser 2 minutos depois do lance**, então todo lance tardio deixa exatamente 2 minutos para os outros responderem.
 - **Snapshot do item no banco**, incluindo a foto, para não depender da API externa depois de criado o lote.
 - **Sem triggers bloqueando alterações na tabela de lances**: a proposta é **detectar** adulteração. Bloquear a escrita impediria o próprio teste de adulteração.
 - **Um único serviço no deploy**: front e API na mesma origem, sem configurar CORS em produção.

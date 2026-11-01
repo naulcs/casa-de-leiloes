@@ -8,9 +8,18 @@ export function formatarReais(centavos) {
 export function formatarTempo(ms) {
   if (ms <= 0) return "00:00";
   const total = Math.floor(ms / 1000);
-  const minutos = String(Math.floor(total / 60)).padStart(2, "0");
-  const segundos = String(total % 60).padStart(2, "0");
-  return `${minutos}:${segundos}`;
+  const dias = Math.floor(total / 86400);
+  const horas = Math.floor((total % 86400) / 3600);
+  const minutos = Math.floor((total % 3600) / 60);
+  const segundos = total % 60;
+  const doisDigitos = (valor) => String(valor).padStart(2, "0");
+  if (dias > 0) {
+    return `${dias}d ${doisDigitos(horas)}h ${doisDigitos(minutos)}min`;
+  }
+  if (horas > 0) {
+    return `${doisDigitos(horas)}:${doisDigitos(minutos)}:${doisDigitos(segundos)}`;
+  }
+  return `${doisDigitos(minutos)}:${doisDigitos(segundos)}`;
 }
 
 export function contarLances(quantidade) {
