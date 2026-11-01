@@ -85,3 +85,13 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 );
 
 ALTER TABLE lots ADD COLUMN IF NOT EXISTS early_end_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS bids_bidder_idx ON bids (bidder_id, lot_id);
+
+CREATE INDEX IF NOT EXISTS lots_active_leader_idx
+  ON lots (leader_id) WHERE canceled_at IS NULL AND settled_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS lots_auctioneer_idx ON lots (auctioneer_id, id DESC);
+
+CREATE INDEX IF NOT EXISTS wallet_transactions_user_idx
+  ON wallet_transactions (user_id, id DESC);

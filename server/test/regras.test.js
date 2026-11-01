@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 process.env.AUDIT_SECRET ??= "segredo-de-teste";
 
-const { avaliarFimDoLeilao, nextMinBid } = await import(
+const { avaliarFimDoLeilao, nextMinBid, prorrogarFim } = await import(
   "../src/services/lots.js"
 );
 const { bidHash, genesisHash, headSeal, verifyLot } = await import(
@@ -121,4 +121,30 @@ test("encerramento antecipado não é tratado como alteração", () => {
   registro.ends_at = antecipado;
   registro.early_end_at = antecipado;
   assert.equal(verifyLot(registro, lances).intact, true);
+});
+
+const MINUTO = 60000;
+const FIM = new Date("2026-01-01T10:30:00Z");
+const antesDoFim = (ms) => new Date(FIM.getTime() - ms);
+
+test("lance a 10 segundos do fim deixa o lote terminando 2 minutos depois do lance", () => {
+  const lance = antesDoFim(10000);
+  const novoFim = prorrogarFim(FIM, lance);
+  assert.equal(novoFim.getTime() - lance.getTime(), 2 * MINUTO);
+});
+
+test("lance a 1m59s do fim também termina 2 minutos depois do lance", () => {
+  const lance = antesDoFim(MINUTO + 59000);
+  const novoFim = prorrogarFim(FIM, lance);
+  assert.equal(novoFim.getTime() - lance.getTime(), 2 * MINUTO);
+});
+
+test("lance com mais de 2 minutos restantes não muda o fim", () => {
+  const lance = antesDoFim(5 * MINUTO);
+  assert.equal(prorrogarFim(FIM, lance).getTime(), FIM.getTime());
+});
+
+test("lance com exatamente 2 minutos restantes não muda o fim", () => {
+  const lance = antesDoFim(2 * MINUTO);
+  assert.equal(prorrogarFim(FIM, lance).getTime(), FIM.getTime());
 });

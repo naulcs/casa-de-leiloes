@@ -10,6 +10,13 @@ export const LOT_FIELDS = `id, title, attributes, starting_bid_cents, min_increm
     EXISTS (SELECT 1 FROM lot_images li WHERE li.lot_id = lots.id) AS has_image,
   ${STATUS_SQL} AS status`;
 
+export const PRORROGACAO_MS = 2 * 60 * 1000;
+
+export function prorrogarFim(fimAtual, momentoDoLance) {
+  const limite = new Date(momentoDoLance.getTime() + PRORROGACAO_MS);
+  return limite > fimAtual ? limite : fimAtual;
+}
+
 export function nextMinBid(lot) {
   return lot.bid_count === 0
     ? lot.starting_bid_cents

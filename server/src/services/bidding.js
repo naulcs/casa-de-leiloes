@@ -1,9 +1,7 @@
 import { withTransaction } from "../db/tx.js";
 import { bidHash, genesisHash, headSeal } from "./integrity.js";
-import { nextMinBid } from "./lots.js";
+import { nextMinBid, prorrogarFim } from "./lots.js";
 import { getWalletSummary } from "./wallet.js";
-
-const DOIS_MINUTOS = 2 * 60 * 1000;
 
 export class BidRejected extends Error {
   constructor(code, message, extra = {}) {
@@ -70,10 +68,8 @@ export function placeBid({ lotId, userId, amountCents }) {
       );
     }
 
-    const estende = lot.ends_at - agora <= DOIS_MINUTOS;
-    const endsAtAfter = estende
-      ? new Date(lot.ends_at.getTime() + DOIS_MINUTOS)
-      : lot.ends_at;
+    const endsAtAfter = prorrogarFim(lot.ends_at, agora);
+    const estende = endsAtAfter > lot.ends_at;
 
     if (lot.bid_count > 0 && !lot.head_hash)
       throw new Error("Lote com lances e sem selo.");
