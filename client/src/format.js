@@ -25,3 +25,7 @@ export function formatarTempo(ms) {
 export function contarLances(quantidade) {
   return `${quantidade} ${quantidade === 1 ? "lance" : "lances"}`;
 }
+
+export function reaisParaCentavos(texto) {
+  return Math.round(Number(String(texto).replace(",", ".")) * 100);
+}

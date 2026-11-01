@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Carrossel from "../Carrossel.jsx";
 import { api } from "../api.js";
-import { contarLances, formatarReais } from "../format.js";
+import { contarLances, formatarReais, reaisParaCentavos } from "../format.js";
 
 const STATUS = {
   scheduled: "Agendado",
@@ -12,10 +12,6 @@ const STATUS = {
 };
 
 const FORMULARIO_VAZIO = { inicial: "", incremento: "", inicio: "", fim: "" };
-
-function reaisParaCentavos(texto) {
-  return Math.round(Number(String(texto).replace(",", ".")) * 100);
-}
 
 export default function Painel() {
   const [lotes, setLotes] = useState(null);

@@ -3,11 +3,12 @@ import { Link, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { api, getToken } from "../api.js";
 import { useAuth } from "../auth.jsx";
-import { contarLances, formatarReais, formatarTempo } from "../format.js";
-
-function reaisParaCentavos(texto) {
-  return Math.round(Number(String(texto).replace(",", ".")) * 100);
-}
+import {
+  contarLances,
+  formatarReais,
+  formatarTempo,
+  reaisParaCentavos,
+} from "../format.js";
 
 const DOIS_MINUTOS = 2 * 60 * 1000;
 

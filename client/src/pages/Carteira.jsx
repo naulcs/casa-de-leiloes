@@ -1,17 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
-import { formatarReais } from "../format.js";
+import { formatarReais, reaisParaCentavos } from "../format.js";
 
 const TIPOS = {
   deposit: "Depósito",
   purchase: "Compra de lote",
   sale: "Venda de lote",
 };
-
-function reaisParaCentavos(texto) {
-  return Math.round(Number(String(texto).replace(",", ".")) * 100);
-}
 
 export default function Carteira() {
   const [carteira, setCarteira] = useState(null);

@@ -118,6 +118,7 @@ function ListaDeLotes({ status }) {
 
       <input
         type="search"
+        aria-label="Buscar formiga"
         placeholder="Buscar formiga..."
         value={busca}
         onChange={(e) => setBusca(e.target.value)}

@@ -209,8 +209,12 @@ select {
 
 input:focus,
 select:focus {
-  outline: none;
   border-bottom-color: var(--limao);
+}
+
+:focus-visible {
+  outline: 2px solid var(--limao);
+  outline-offset: 3px;
 }
 
 select option {
