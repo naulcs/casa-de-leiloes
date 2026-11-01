@@ -330,7 +330,7 @@ form h3 {
 
 .hero-titulo {
   margin: 0;
-  font-size: clamp(4rem, 16vw, 15rem);
+  font-size: clamp(2.2rem, 15vw, 14rem);
   font-weight: 400;
   line-height: 0.85;
   letter-spacing: -0.06em;
@@ -789,7 +789,7 @@ code {
 
 .hero-titulo.letreiro {
   --tamanho-padrao: 300px;
-  font-size: clamp(4rem, 17vw, 16rem);
+  font-size: clamp(2.2rem, 15vw, 14rem);
   line-height: 0.9;
   letter-spacing: -0.02em;
   filter: drop-shadow(0 6px 0 #3b2414);

@@ -2,7 +2,7 @@
 
 Casa de leilões online em que um **leiloeiro** cria lotes a partir de espécies de formigas da API pública **iNaturalist** e **licitantes** disputam os lotes com lances ao vivo. Cada lance é selado criptograficamente e qualquer pessoa pode auditar o histórico de um lote.
 
-- **Aplicação publicada:** _link será adicionado após o deploy_
+- **Aplicação publicada:** https://formilance.onrender.com
 - **Repositório:** https://github.com/naulcs/casa-de-leiloes
 
 ---
