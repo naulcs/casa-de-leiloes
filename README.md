@@ -23,13 +23,14 @@ Casa de leilões online em que um **leiloeiro** cria lotes a partir de espécies
 12. [Regras de negócio](#regras-de-negócio)
 13. [Histórico à prova de adulteração](#histórico-à-prova-de-adulteração)
 14. [Privacidade](#privacidade)
-15. [Tempo real e concorrência](#tempo-real-e-concorrência)
-16. [Rotas da API](#rotas-da-api)
-17. [Decisões de projeto](#decisões-de-projeto)
-18. [Comportamentos inesperados e limitações conhecidas](#comportamentos-inesperados-e-limitações-conhecidas)
-19. [Extras opcionais](#extras-opcionais)
-20. [Uso de IA](#uso-de-ia)
-21. [Autor](#autor)
+15. [Segurança](#segurança)
+16. [Tempo real e concorrência](#tempo-real-e-concorrência)
+17. [Rotas da API](#rotas-da-api)
+18. [Decisões de projeto](#decisões-de-projeto)
+19. [Comportamentos inesperados e limitações conhecidas](#comportamentos-inesperados-e-limitações-conhecidas)
+20. [Extras opcionais](#extras-opcionais)
+21. [Uso de IA](#uso-de-ia)
+22. [Autor](#autor)
 
 ---
 
@@ -51,24 +52,27 @@ Essas contas existem apenas para avaliação e não guardam nenhum dado real.
 
 **Para todos (sem login)**
 - Página inicial com apresentação animada.
-- Vitrine separada em **Ao vivo**, **Agendados** e **Encerrados**, com busca por nome. Lotes cancelados não aparecem.
-- Sala do lote com lance atual, histórico, contagem regressiva e número de pessoas acompanhando.
+- Vitrine separada em **Ao vivo**, **Agendados** e **Encerrados**, com busca por nome. Lotes cancelados não aparecem. A vitrine se atualiza sozinha pelo Socket.IO: lance novo, lote criado, lote que começou, cancelado ou encerrado aparecem sem recarregar a página.
+- Sala do lote com lance atual, histórico em tabela, contagem regressiva e número de pessoas acompanhando.
+- Mensagens para listas vazias: lote sem lances, busca sem resultado e auditoria de lote sem lances.
 - **Auditoria pública** de cada lote (`/auditoria/:id`), indicando se o histórico está íntegro ou adulterado.
 - **Comprovante público** de arremate (`/comprovantes/:codigo`), com botão de compartilhar.
 
 **Licitante**
-- Carteira com saldo total, saldo comprometido, saldo disponível, depósito simulado e extrato.
-- Lances ao vivo, com aviso de "você está ganhando", "você foi superado" e a posição do licitante entre os participantes.
+- Carteira com saldo total, saldo comprometido, saldo disponível, depósito simulado (com mensagem de confirmação) e extrato em tabela.
+- Lances ao vivo, com aviso de "você está ganhando", "você foi superado" e a posição do licitante entre os participantes. O aviso de "você foi superado" continua aparecendo mesmo depois de recarregar a página.
 - Mensagem específica para cada lance recusado.
 - "Meus arremates": lotes em que deu lance, situação de cada um e link do comprovante.
 - Desistência de um lote (ver [regras](#regras-de-negócio)).
 
 **Leiloeiro**
 - Busca de espécies na iNaturalist, com paginação ("Carregar mais").
-- Criação de lote com lance inicial, incremento mínimo, início e fim.
+- Criação de lote com lance inicial, incremento mínimo, início e fim. O botão fica desabilitado enquanto o lote é criado, então um clique duplo não cria dois lotes.
 - Cancelamento de lote próprio agendado ou ao vivo. Sem lances, é o cancelamento pedido no PDF; com lances, o valor reservado de quem liderava volta na hora ao saldo disponível (estorno automático).
 - Resultado de cada lote (arrematado ou não e por quanto) e total recebido.
-- O leiloeiro **não pode dar lances** e só vê e gerencia os próprios lotes.
+- O leiloeiro **não pode dar lances** e só vê e gerencia os próprios lotes, numa tabela com situação, lance atual e resultado.
+
+As páginas que exigem login (carteira, meus arremates e painel) levam para a tela de entrada e, depois do login, voltam para a página que a pessoa queria abrir.
 
 ---
 
@@ -82,9 +86,9 @@ Essas contas existem apenas para avaliação e não guardam nenhum dado real.
 | Banco | PostgreSQL no Neon, driver `pg`, SQL puro (sem ORM) |
 | Autenticação | JWT (7 dias) + senhas com `bcryptjs` |
 | Testes | `node:test` (executor nativo do Node) |
-| Formatação | Prettier (aspas duplas, largura 80) |
+| Formatação e lint | Prettier (aspas duplas, largura 80) e oxlint no front |
 
-O dinheiro é sempre guardado em **centavos** (`BIGINT`), nunca em número com vírgula.
+O dinheiro é sempre guardado em **centavos** (`BIGINT`), nunca em número com vírgula. Os nomes de funções, variáveis e arquivos estão em inglês; os textos da interface e as mensagens de erro, em português.
 
 ---
 
@@ -95,29 +99,35 @@ casa-de-leiloes/
 ├── client/                  React + Vite
 │   ├── index.html
 │   └── src/
-│       ├── App.jsx          rotas e cabeçalho
+│       ├── App.jsx          rotas, cabeçalho e páginas que exigem login
 │       ├── api.js           chamadas HTTP e token
 │       ├── auth.jsx         sessão do usuário
+│       ├── useAuth.js       acesso à sessão nas telas
+│       ├── sections.js      abas da vitrine
 │       ├── format.js        reais, tempo, plural de lances
-│       ├── Carrossel.jsx    galeria de lotes
-│       ├── Formigueiro.jsx  animação da página inicial
-│       ├── Formiga3D.jsx    formiga 3D do logo
-│       └── pages/           Vitrine, Sala, Login, Carteira, Arremates,
-│                            Painel, Auditoria, Comprovante
+│       ├── Carousel.jsx     galeria de lotes
+│       ├── AntColony.jsx    animação da página inicial
+│       ├── Ant3D.jsx        formiga 3D do logo
+│       ├── hooks/           useLotRoom (dados e tempo real da sala)
+│       ├── components/      BidForm, BidHistory, AntSearch, LotForm, MyLots
+│       └── pages/           Showcase (vitrine), LotRoom (sala), Login,
+│                            Wallet, MyBids, Dashboard (painel), Audit, Receipt
 ├── Dockerfile               imagem da aplicação
 ├── docker-compose.yml       banco + aplicação
 └── server/                  Node + Express
     ├── scripts/dev-helpers.sh   atalhos de terminal para testes manuais
-    ├── test/regras.test.js      testes automatizados
+    ├── test/                    rules.test.js e lots.test.js
     └── src/
         ├── index.js         servidor HTTP, rotas, Socket.IO, liquidador
         ├── config.js
         ├── db/              pool, transações, schema.sql, migração, seed
-        ├── middleware/      autenticação e papéis
+        ├── middleware/      autenticação, papéis e limite de tentativas
         ├── routes/          auth, wallet, catalog, lots, bids, audit, receipts, me
-        └── services/        bidding, settlement, integrity, realtime,
-                             inaturalist, lots, wallet
+        └── services/        regras de negócio: auctioneer, bidding, settlement,
+                             integrity, realtime, inaturalist, lots, wallet
 ```
+
+As rotas só cuidam do HTTP (ler a requisição, chamar o service e responder). As regras ficam nos `services`: criação e cancelamento de lote em `auctioneer.js`, validação do lote em `lots.js`, lances e desistência em `bidding.js`, depósito em `wallet.js` e liquidação em `settlement.js`.
 
 ---
 
@@ -192,6 +202,8 @@ Se a porta 3000 já estiver em uso, escolha outra com a variável PORTA (por exe
 | `npm run db:seed` | Cria as contas e os lotes de demonstração |
 | `npm test` | Roda os testes automatizados |
 
+No front, `npm run lint` (dentro de `client/`) roda o oxlint, e `npm run build` gera a versão de produção.
+
 ---
 
 ## Variáveis de ambiente
@@ -200,12 +212,11 @@ Arquivo `server/.env` (nunca vai para o Git; há um modelo em `server/.env.examp
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
-| `DATABASE_URL` | Sim | String de conexão do PostgreSQL. No Neon, use `sslmode=verify-full`. |
+| `DATABASE_URL` | Sim | String de conexão do PostgreSQL. No Neon, use `sslmode=verify-full` (é o que vem no `.env.example`). Num PostgreSQL local sem SSL, tire o `?sslmode=...` do fim da string, senão a conexão falha. |
 | `JWT_SECRET` | Sim | Segredo para assinar os tokens de login. |
 | `AUDIT_SECRET` | Sim | Segredo dos selos do histórico de lances. **Deve ficar fora do banco.** |
 | `PORT` | Não | Porta do servidor (padrão `3000`). O Render define sozinho. |
 | `INATURALIST_URL` | Não | Endereço da API da iNaturalist (padrão `https://api.inaturalist.org/v1`). Útil para simular a API fora do ar. |
-| `ENCERRAMENTO_ANTECIPADO` | Não | `1` liga a regra extra de encerramento no minuto final. Qualquer outro valor, ou a variável ausente, deixa a regra desligada (padrão). |
 
 Para gerar segredos fortes:
 
@@ -261,18 +272,19 @@ cd server
 npm test
 ```
 
-Os testes automatizados (`server/test/regras.test.js`) cobrem as regras que não dependem do banco:
+Os testes automatizados cobrem as regras que não dependem do banco (14 testes):
 
-- lance mínimo (primeiro lance e lances seguintes);
-- anti-sniping (lance a 10 s e a 1m59s do fim, com 2 minutos e com mais de 2 minutos restantes);
-- regra de encerramento no minuto final (sem licitantes, com um, com dois, com e sem pessoas na sala, e com a regra desligada);
-- verificação do histórico: íntegro, valor alterado detectado e encerramento antecipado aceito como legítimo.
+- `server/test/rules.test.js`: lance mínimo (primeiro lance e lances seguintes); anti-sniping (lance a 10 s e a 1m59s do fim, com 2 minutos e com mais de 2 minutos restantes); verificação do histórico íntegro, com valor alterado e com horário de encerramento alterado (os dois casos são detectados).
+- `server/test/lots.test.js`: validação da criação de lote (sem formiga, valores zerados ou quebrados, fim no passado, fim antes do início, duração menor que 1 minuto) e limite de tentativas de login (só as tentativas que falham contam).
 
 Também foram feitos **testes manuais de ponta a ponta** contra o banco no Neon (scripts temporários, não versionados):
 
 - **API externa fora do ar:** com a iNaturalist apontada para um endereço que não responde, vitrine, sala, foto, auditoria e comprovante continuaram funcionando; a busca do painel respondeu com mensagem clara.
 - **Lances simultâneos:** 8 rodadas de 8 lances disparados ao mesmo tempo por dois licitantes. Em todas, exatamente 1 lance foi aceito; os outros foram recusados pelo motivo correto. A sequência ficou sem buracos, a auditoria íntegra e o saldo comprometido igual à soma dos lotes liderados.
-- Liquidação, desistência, encerramento no minuto final (com a regra ligada) e cancelamento.
+- **Tempo real na vitrine:** criação de lote, lances, início de um lote agendado e cancelamento chegaram à vitrine pelo socket, sem nenhuma nova consulta à API.
+- **Fluxos de tela:** licitante superado que recarrega a página continua vendo o aviso; depósito com mensagem de confirmação; clique duplo em "Criar lote" criou um lote só; páginas com login voltam para o lugar certo depois de entrar; telas a 375 px de largura sem rolagem lateral.
+- **Segurança:** busca com mais de 100 caracteres recusada e tentativas de login bloqueadas depois do limite.
+- Liquidação, desistência e cancelamento.
 
 ---
 
@@ -332,12 +344,6 @@ Depois do primeiro deploy, rode `npm run db:init` e `npm run db:seed` apontando 
 **Desistência** _(regra própria, além do PDF)_
 - Quem já deu lance e **não está ganhando** pode desistir de um lote ao vivo. Depois disso, não pode mais dar lances nele. Quem está ganhando não pode desistir.
 
-**Encerramento no minuto final** _(regra própria, além do PDF, **desligada por padrão**)_
-- Fica desligada no deploy, para o leilão seguir o PDF à risca: lances aceitos até o horário de fim e prorrogação de 2 minutos depois de um lance tardio. Para ligar, defina `ENCERRAMENTO_ANTECIPADO=1` no `.env`.
-- Se o lote teve **pelo menos 2 licitantes** e **pelo menos um deles está na sala**, ele é encerrado nos **59 segundos finais** e o líder vence.
-- Se só uma pessoa deu lance, ou se nenhum licitante está na sala, o lote vai até o último segundo.
-- Quando alguém que deu lance sai e sobra só uma pessoa, a vitrine e a sala avisam, nos 2 minutos finais, que o lote será encerrado no minuto final.
-
 ---
 
 ## Histórico à prova de adulteração
@@ -371,18 +377,31 @@ Auditoria, histórico de lances e comprovante nunca mostram nome, e-mail ou id d
 
 ---
 
+## Segurança
+
+- **Senhas** guardadas com `bcryptjs`; login por JWT com validade de 7 dias.
+- **Limite de tentativas** em `/auth/login` e `/auth/register`: depois de 10 tentativas que falham em 15 minutos, o mesmo endereço recebe `429` com a mensagem *"Muitas tentativas seguidas. Espere alguns minutos e tente de novo."* Tentativas que dão certo não contam, então quem usa o site normalmente não é bloqueado.
+- **Busca limitada a 100 caracteres** na vitrine (`/lots?q=`) e no catálogo, porque a busca percorre o título e os atributos de cada lote.
+- **Sem CORS:** em produção o front e a API ficam na mesma origem, e no desenvolvimento o Vite encaminha as chamadas. Por isso o servidor não aceita requisições de outros sites.
+- **Valores conferidos no servidor:** ids, valores em centavos, datas e tamanhos de texto são validados antes de qualquer consulta, e todo SQL usa parâmetros (`$1`, `$2`...), sem montar texto com dados do usuário.
+- **Segredos** (`JWT_SECRET`, `AUDIT_SECRET`, `DATABASE_URL`) só no `.env` e nas variáveis do Render, nunca no repositório.
+
+---
+
 ## Tempo real e concorrência
 
 **Socket.IO**, com salas por lote (`lot:ID`), pela vitrine e por usuário (`user:ID`):
 
 | Evento | Quando |
 |---|---|
-| `lot:update` | Novo lance, prorrogação, cancelamento, encerramento ou liquidação |
+| `lot:update` | Lote criado, lote agendado que começou, novo lance, prorrogação, cancelamento, encerramento ou liquidação |
 | `lot:presence` | Alguém entrou ou saiu da sala |
 | `bid:outbid` | Aviso pessoal: "você foi superado" |
 | `lot:won` | Aviso pessoal: "você ganhou", com o código do comprovante |
 
 Os eventos públicos só levam dados do lote e o apelido do licitante.
+
+**Vitrine sem consultas repetidas:** a vitrine busca a lista uma vez e depois só escuta a sala `showcase`. Cada `lot:update` entra, sai ou atualiza o cartão conforme a aba aberta, e a lista é buscada de novo apenas se a conexão cair e voltar. Para que um lote agendado apareça em "Ao vivo" na hora certa, o mesmo processo que faz a liquidação avisa a cada 2 segundos os lotes que acabaram de começar.
 
 **Concorrência:** cada lance roda numa transação que trava o lote (`SELECT ... FOR UPDATE`) e depois o licitante, e só então valida as regras, troca o líder, grava o lance com o selo e atualiza o lote. Lances simultâneos no mesmo lote são processados um por vez. A liquidação trava os dois usuários sempre na mesma ordem, para evitar travamento mútuo.
 
@@ -395,13 +414,13 @@ Todas começam com `/api`. 🔒 = exige login.
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/health` | Teste de vida |
-| POST | `/auth/register` | Cadastro (`name`, `email`, `password`, `role`) |
-| POST | `/auth/login` | Login, devolve o token |
+| POST | `/auth/register` | Cadastro (`name`, `email`, `password`, `role`), com limite de tentativas |
+| POST | `/auth/login` | Login, devolve o token, com limite de tentativas |
 | GET | `/auth/me` 🔒 | Usuário logado |
 | GET | `/wallet` 🔒 | Saldos e extrato |
 | POST | `/wallet/deposit` 🔒 licitante | Depósito simulado (`amount_cents`) |
 | GET | `/catalog/search?q=&page=` 🔒 leiloeiro | Busca na iNaturalist |
-| GET | `/lots?status=&q=` | Vitrine (`live`, `scheduled`, `ended`) |
+| GET | `/lots?status=&q=` | Vitrine (`live`, `scheduled`, `ended`), busca de até 100 caracteres |
 | GET | `/lots/mine` 🔒 leiloeiro | Lotes do leiloeiro e total recebido |
 | POST | `/lots` 🔒 leiloeiro | Cria lote |
 | GET | `/lots/:id` | Detalhe do lote |
@@ -424,17 +443,20 @@ Todas começam com `/api`. 🔒 = exige login.
 - **Anti-sniping pelo momento do lance**: o PDF diz que o lance nos 2 minutos finais "estende o fim do lote para +2 minutos". A leitura adotada é que o fim **passa a ser 2 minutos depois do lance**, então todo lance tardio deixa exatamente 2 minutos para os outros responderem.
 - **Snapshot do item no banco**, incluindo a foto, para não depender da API externa depois de criado o lote.
 - **Sem triggers bloqueando alterações na tabela de lances**: a proposta é **detectar** adulteração. Bloquear a escrita impediria o próprio teste de adulteração.
-- **Um único serviço no deploy**: front e API na mesma origem, sem configurar CORS em produção.
+- **Um único serviço no deploy**: front e API na mesma origem, sem CORS.
+- **Regras de negócio nos services**: as rotas só tratam a requisição e a resposta, o que deixa as regras reaproveitáveis (o seed usa a mesma função de lance da aplicação) e testáveis sem subir o servidor.
+- **Telas divididas em partes menores**: a sala usa o hook `useLotRoom` e os componentes `BidForm` e `BidHistory`; o painel usa `AntSearch`, `LotForm` e `MyLots`.
+- **Nomes em inglês no código**: funções, variáveis, componentes e classes CSS seguem um idioma só. Textos da interface, mensagens de erro e endereços das páginas (`/lotes/:id`, `/carteira`...) ficam em português, porque são o que o usuário vê.
+- **JavaScript, sem TypeScript**: avaliei migrar para TypeScript, mas preferi não reescrever todos os arquivos perto do prazo. As entradas da API são validadas no servidor e as regras principais têm testes automatizados.
 
 ---
 
 ## Comportamentos inesperados e limitações conhecidas
 
-- **Encerramento antes do horário (só com a regra extra ligada):** com `ENCERRAMENTO_ANTECIPADO=1`, um lote com dois ou mais licitantes e alguém na sala termina 59 segundos antes do horário mostrado, o que encurta a prorrogação de um lance tardio para cerca de 1 minuto. Por isso a regra vem desligada e fica desligada no deploy. Ligada, o encerramento acontece entre 57 e 59 segundos antes, porque o servidor verifica a cada 2 segundos.
-- **Presença na sala fica na memória do servidor.** Funciona com uma instância; com várias instâncias, cada uma veria só os próprios visitantes. Uma aba aberta em segundo plano conta como presença.
+- **Presença na sala e limite de tentativas ficam na memória do servidor.** Funcionam com uma instância; com várias instâncias, cada uma teria a própria contagem. Uma aba aberta em segundo plano conta como presença, e reiniciar o servidor zera o limite de tentativas.
 - **Liquidação a cada 2 segundos:** o liquidador consulta o banco o tempo todo enquanto o servidor está ligado, o que mantém o Neon acordado.
 - **Limite da integridade:** quem tiver o `AUDIT_SECRET` consegue refazer os selos, e restaurar o banco inteiro para um estado antigo produz uma corrente válida (o comprovante denuncia esse caso, mas só para lotes liquidados).
-- **Desistências e o horário de encerramento antecipado não entram na corrente de selos.** A auditoria aceita o encerramento antecipado quando o horário bate com o registro `early_end_at`.
+- **Desistências não entram na corrente de selos:** ficam numa tabela separada e não alteram o histórico de lances.
 - **Nomes em inglês:** algumas espécies não têm nome popular em português na iNaturalist e aparecem em inglês.
 - **Lotes de demonstração expiram** após alguns dias; rode `npm run db:seed` de novo.
 - **Hospedagem gratuita:** no plano gratuito do Render, o serviço "dorme" depois de um tempo sem acesso e o primeiro acesso pode levar cerca de 1 minuto.
@@ -449,7 +471,7 @@ Todas começam com `/api`. 🔒 = exige login.
 | Busca e filtro de lotes | ✅ Busca por nome em cada seção da vitrine |
 | Cancelamento com estorno automático | ✅ O leiloeiro pode cancelar lotes com lances; o valor reservado de quem liderava volta na hora ao saldo disponível |
 | Docker Compose | ✅ `docker compose up --build` sobe o banco e a aplicação |
-| Testes automatizados | ✅ Parcial: regras puras e integridade; testes com banco foram manuais |
+| Testes automatizados | ✅ Parcial: regras puras, integridade, validação de lote e limite de tentativas; os fluxos com banco foram testados manualmente |
 | Dark Mode | ✅ Dois temas: **Areia** (claro, fundo de areia granulado) e **Terroso** (escuro). Botão no cabeçalho; a escolha fica salva e a primeira visita segue a preferência do sistema |
 
 ---
@@ -467,10 +489,23 @@ Usei um assistente de inteligência artificial como par de programação durante
 
 **O que eu decidi, revisei e ajustei**
 - o nome FormiLance e a direção visual, a partir de referências que eu escolhi (carrossel, cores, temas areia e terroso, formiga 3D);
-- regras além do PDF, como a desistência e a regra do minuto final, que deixei desligada por padrão;
+- regras além do PDF, como a desistência; também propus uma regra de encerramento no minuto final e depois a removi, para o leilão sempre ir até o horário de fim;
 - testes manuais de cada fluxo: lances, carteira, liquidação, comprovante, auditoria e cancelamento;
 - configuração das contas e das variáveis de ambiente no Neon e no Render;
 - revisão do projeto com base no PDF e escolha de quais sugestões de melhoria aplicar.
+
+**Correções e sugestões que fiz durante o desenvolvimento**
+
+Encontrei estes pontos testando o site manualmente ou revisando o que a IA entregava, e pedi as correções:
+
+- **Regra que não estava no PDF:** uma análise da IA marcou o cancelamento com estorno automático como "não implementado", dizendo que ele contrariava uma regra obrigatória de recusar o cancelamento de lotes com lances. Conferi no PDF: ele pede que o leiloeiro possa cancelar lotes sem lances e lista o cancelamento com estorno como opcional, sem proibir nada. A proibição vinha de um checklist que eu tinha usado antes. A partir daí, corrigir manualmente seguindo as informações do PDF, e o cancelamento com estorno foi implementado.
+- **Comprovante quebrado:** no fim de um leilão de teste, o link do comprovante abria uma página em branco e sumia quando eu voltava, e não havia como ver o comprovante depois. Isso levou à página pública do comprovante e ao link em "Meus arremates" e na vitrine.
+- **Lote no lugar errado:** um lote listado na aba "Ao vivo" abria como encerrado na sala. Também pedi o cronômetro nos cartões dos lotes ao vivo.
+- **Desistência:** testando com duas contas, sugeri um botão para o licitante desistir de um lote. Depois percebi que, com só dois participantes, uma desistência entregava o item sem dar chance para outra pessoa entrar no leilão, e pedi para mudar a regra.
+- **Regra do minuto final:** propus e detalhei uma regra de encerramento no minuto final (quantos licitantes, quem precisava estar na sala). Ela encurtava a prorrogação de 2 minutos do PDF, então primeiro deixei desligada e depois a removi, para o leilão sempre ir até o horário de fim.
+- **Poucas formigas:** notei que o banco tinha só 12 espécies e pedi para buscar mais espécies da iNaturalist e para tirar o hífen dos nomes ("formiga-vermelha" → "formiga vermelha").
+- **Visual:** achei o primeiro front "cru" e dirigi a identidade visual com referências que eu escolhi: carrossel no estilo do Instagram, página inicial com formigueiro animado, cores terrosas, temas areia e terroso e formiga 3D no logo. A formiga saía do quadro ao girar e girava rápido demais; pedi para ela ficar de frente e só girar com o mouse em cima. Também pedi o menu no topo e o título mais para cima.
+- **Título cortado no deploy:** no site publicado, o nome FormiLance aparecia cortado, e pedi a correção.
 
 ---
 
