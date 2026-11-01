@@ -205,6 +205,7 @@ Arquivo `server/.env` (nunca vai para o Git; há um modelo em `server/.env.examp
 | `AUDIT_SECRET` | Sim | Segredo dos selos do histórico de lances. **Deve ficar fora do banco.** |
 | `PORT` | Não | Porta do servidor (padrão `3000`). O Render define sozinho. |
 | `INATURALIST_URL` | Não | Endereço da API da iNaturalist (padrão `https://api.inaturalist.org/v1`). Útil para simular a API fora do ar. |
+| `ENCERRAMENTO_ANTECIPADO` | Não | `1` liga a regra extra de encerramento no minuto final. Qualquer outro valor, ou a variável ausente, deixa a regra desligada (padrão). |
 
 Para gerar segredos fortes:
 
@@ -236,7 +237,7 @@ Tabelas (`server/src/db/schema.sql`):
 
 O **status** do lote (agendado, ao vivo, encerrado, cancelado) não é guardado: é calculado pelas datas em cada consulta.
 
-Além das chaves e campos únicos, há índices para as consultas mais frequentes: lances por licitante ("Meus arremates"), lotes ativos por líder (saldo comprometido), lotes por leiloeiro (painel), extrato da carteira e lotes pendentes de liquidação.
+Além das chaves e campos únicos, há índices para as consultas mais frequentes: lances por licitante ("Meus arremates"), lotes ativos por líder (saldo comprometido), lotes por leiloeiro (painel), extrato da carteira, lotes pendentes de liquidação e as abas da vitrine, que filtram os lotes pelas datas de início e fim direto no banco.
 
 ---
 
@@ -264,14 +265,14 @@ Os testes automatizados (`server/test/regras.test.js`) cobrem as regras que não
 
 - lance mínimo (primeiro lance e lances seguintes);
 - anti-sniping (lance a 10 s e a 1m59s do fim, com 2 minutos e com mais de 2 minutos restantes);
-- regra de encerramento no minuto final (sem licitantes, com um, com dois, com e sem pessoas na sala);
+- regra de encerramento no minuto final (sem licitantes, com um, com dois, com e sem pessoas na sala, e com a regra desligada);
 - verificação do histórico: íntegro, valor alterado detectado e encerramento antecipado aceito como legítimo.
 
 Também foram feitos **testes manuais de ponta a ponta** contra o banco no Neon (scripts temporários, não versionados):
 
 - **API externa fora do ar:** com a iNaturalist apontada para um endereço que não responde, vitrine, sala, foto, auditoria e comprovante continuaram funcionando; a busca do painel respondeu com mensagem clara.
 - **Lances simultâneos:** 8 rodadas de 8 lances disparados ao mesmo tempo por dois licitantes. Em todas, exatamente 1 lance foi aceito; os outros foram recusados pelo motivo correto. A sequência ficou sem buracos, a auditoria íntegra e o saldo comprometido igual à soma dos lotes liderados.
-- Liquidação, desistência, encerramento no minuto final e cancelamento.
+- Liquidação, desistência, encerramento no minuto final (com a regra ligada) e cancelamento.
 
 ---
 
@@ -331,7 +332,8 @@ Depois do primeiro deploy, rode `npm run db:init` e `npm run db:seed` apontando 
 **Desistência** _(regra própria, além do PDF)_
 - Quem já deu lance e **não está ganhando** pode desistir de um lote ao vivo. Depois disso, não pode mais dar lances nele. Quem está ganhando não pode desistir.
 
-**Encerramento no minuto final** _(regra própria, além do PDF)_
+**Encerramento no minuto final** _(regra própria, além do PDF, **desligada por padrão**)_
+- Fica desligada no deploy, para o leilão seguir o PDF à risca: lances aceitos até o horário de fim e prorrogação de 2 minutos depois de um lance tardio. Para ligar, defina `ENCERRAMENTO_ANTECIPADO=1` no `.env`.
 - Se o lote teve **pelo menos 2 licitantes** e **pelo menos um deles está na sala**, ele é encerrado nos **59 segundos finais** e o líder vence.
 - Se só uma pessoa deu lance, ou se nenhum licitante está na sala, o lote vai até o último segundo.
 - Quando alguém que deu lance sai e sobra só uma pessoa, a vitrine e a sala avisam, nos 2 minutos finais, que o lote será encerrado no minuto final.
@@ -404,7 +406,7 @@ Todas começam com `/api`. 🔒 = exige login.
 | POST | `/lots` 🔒 leiloeiro | Cria lote |
 | GET | `/lots/:id` | Detalhe do lote |
 | GET | `/lots/:id/image` | Foto do lote (do banco) |
-| POST | `/lots/:id/cancel` 🔒 leiloeiro | Cancela lote sem lances |
+| POST | `/lots/:id/cancel` 🔒 leiloeiro | Cancela lote agendado ou ao vivo; se houver lances, devolve na hora o valor reservado de quem liderava |
 | GET | `/lots/:id/bids` | Histórico de lances |
 | POST | `/lots/:id/bids` 🔒 licitante | Dá um lance (`amount_cents`) |
 | POST | `/lots/:id/withdraw` 🔒 licitante | Desiste do lote |
@@ -428,7 +430,7 @@ Todas começam com `/api`. 🔒 = exige login.
 
 ## Comportamentos inesperados e limitações conhecidas
 
-- **Encerramento antes do horário:** pela regra do minuto final, um lote com dois ou mais licitantes e alguém na sala termina 59 segundos antes do horário mostrado. O encerramento acontece entre 57 e 59 segundos antes, porque o servidor verifica a cada 2 segundos.
+- **Encerramento antes do horário (só com a regra extra ligada):** com `ENCERRAMENTO_ANTECIPADO=1`, um lote com dois ou mais licitantes e alguém na sala termina 59 segundos antes do horário mostrado, o que encurta a prorrogação de um lance tardio para cerca de 1 minuto. Por isso a regra vem desligada e fica desligada no deploy. Ligada, o encerramento acontece entre 57 e 59 segundos antes, porque o servidor verifica a cada 2 segundos.
 - **Presença na sala fica na memória do servidor.** Funciona com uma instância; com várias instâncias, cada uma veria só os próprios visitantes. Uma aba aberta em segundo plano conta como presença.
 - **Liquidação a cada 2 segundos:** o liquidador consulta o banco o tempo todo enquanto o servidor está ligado, o que mantém o Neon acordado.
 - **Limite da integridade:** quem tiver o `AUDIT_SECRET` consegue refazer os selos, e restaurar o banco inteiro para um estado antigo produz uma corrente válida (o comprovante denuncia esse caso, mas só para lotes liquidados).
@@ -454,14 +456,21 @@ Todas começam com `/api`. 🔒 = exige login.
 
 ## Uso de IA
 
-Utilizei um assistente de inteligência artificial para esclarecer conceitos, sugerir e revisar trechos de código e auxiliar na depuração de erros. Todo o código foi escrito, revisado, testado e ajustado por mim, com o apoio da IA nos pontos descritos aqui, e as regras de negócio foram definidas por mim.
+Usei um assistente de inteligência artificial como par de programação durante todo o projeto. Eu definia o que construir e como cada parte deveria funcionar; a IA escrevia a maior parte do código a partir dessas definições; eu montava cada etapa, rodava, testava e pedia correções até o resultado ficar como eu queria.
 
-Além disso, a IA foi utilizada de forma pontual nas seguintes etapas:
+**Onde a IA foi usada**
+- geração de funções repetitivas do código do back-end e do front-end;
+- configuração do banco no Neon e do deploy no Render;
+- implementação das regras de desistência e automação dos testes;
+- estilização e animação do site;
+- depuração dos erros encontrados nos meus testes.
 
-- configuração e publicação do banco de dados no Neon;
-- ajuste das regras de desistência;
-- automação dos testes;
-- estilização e animação do site.
+**O que eu decidi, revisei e ajustei**
+- o nome FormiLance e a direção visual, a partir de referências que eu escolhi (carrossel, cores, temas areia e terroso, formiga 3D);
+- regras além do PDF, como a desistência e a regra do minuto final, que deixei desligada por padrão;
+- testes manuais de cada fluxo: lances, carteira, liquidação, comprovante, auditoria e cancelamento;
+- configuração das contas e das variáveis de ambiente no Neon e no Render;
+- revisão do projeto com base no PDF e escolha de quais sugestões de melhoria aplicar.
 
 ---
 
