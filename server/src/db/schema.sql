@@ -1,5 +1,3 @@
--- Casa de Leiloes: tabelas do banco.
-
 CREATE TABLE IF NOT EXISTS users (
   id            SERIAL PRIMARY KEY,
   name          TEXT NOT NULL,
@@ -69,8 +67,6 @@ CREATE TABLE IF NOT EXISTS receipts (
   issued_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-
-
 CREATE TABLE IF NOT EXISTS lot_images (
   lot_id       INT PRIMARY KEY REFERENCES lots(id),
   content_type TEXT NOT NULL,
@@ -95,3 +91,9 @@ CREATE INDEX IF NOT EXISTS lots_auctioneer_idx ON lots (auctioneer_id, id DESC);
 
 CREATE INDEX IF NOT EXISTS wallet_transactions_user_idx
   ON wallet_transactions (user_id, id DESC);
+
+CREATE INDEX IF NOT EXISTS lots_vitrine_ends_at_idx
+  ON lots (ends_at) WHERE canceled_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS lots_vitrine_starts_at_idx
+  ON lots (starts_at) WHERE canceled_at IS NULL;

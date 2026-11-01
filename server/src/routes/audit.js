@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { pool } from "../db/pool.js";
 import { bidderAlias, verifyLot } from "../services/integrity.js";
-import { LOT_FIELDS } from "../services/lots.js";
+import { LOT_FIELDS, idValido } from "../services/lots.js";
 
 export const auditRouter = Router();
 
@@ -12,7 +12,7 @@ const METODO =
   "no banco não consegue recalcular os selos, e a verificação abaixo aponta a diferença.";
 
 auditRouter.get("/:id", async (req, res) => {
-  if (!/^\d{1,9}$/.test(req.params.id))
+  if (!idValido(req.params.id))
     return res.status(404).json({ error: "Lote não encontrado." });
   const { rows } = await pool.query(
     `SELECT ${LOT_FIELDS}, leader_id, head_hash, head_seal FROM lots WHERE id = $1`,

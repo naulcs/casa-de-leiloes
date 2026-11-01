@@ -148,3 +148,9 @@ test("lance com exatamente 2 minutos restantes não muda o fim", () => {
   const lance = antesDoFim(2 * MINUTO);
   assert.equal(prorrogarFim(FIM, lance).getTime(), FIM.getTime());
 });
+
+test("com o encerramento antecipado desligado, nada encerra antes do tempo", () => {
+  const fim = avaliarFimDoLeilao([1, 2], new Set([2]), false);
+  assert.equal(fim.encerra_no_minuto_final, false);
+  assert.equal(fim.aviso_minuto_final, false);
+});

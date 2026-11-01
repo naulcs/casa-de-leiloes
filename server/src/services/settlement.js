@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { config } from "../config.js";
 import { pool } from "../db/pool.js";
 import { withTransaction } from "../db/tx.js";
 import { avaliarFimDoLeilao } from "./lots.js";
@@ -119,7 +120,7 @@ export function startSettler() {
     if (rodando) return;
     rodando = true;
     try {
-      await fecharNoMinutoFinal();
+      if (config.encerramentoAntecipado) await fecharNoMinutoFinal();
       await liquidarPendentes();
     } catch (erro) {
       console.error("Falha no liquidador:", erro.message);

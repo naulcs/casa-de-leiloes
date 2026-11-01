@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { config } from "../config.js";
 import { pool } from "../db/pool.js";
 import { withTransaction } from "../db/tx.js";
 import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
@@ -16,30 +17,35 @@ import {
 } from "../services/realtime.js";
 import {
   LOT_FIELDS,
+  MAX_CENTS,
   avaliarFimDoLeilao,
+  idValido,
   serializeLot,
 } from "../services/lots.js";
 
 export const lotsRouter = Router();
 
 const soLeiloeiro = [requireAuth, requireRole("auctioneer")];
-const MAX_CENTS = 100_000_000_00;
 const UM_MINUTO = 60 * 1000;
 
-const idValido = (valor) => /^\d{1,9}$/.test(valor);
 const centavos = (v) => Number.isInteger(v) && v > 0 && v <= MAX_CENTS;
 const data = (v) => {
   const d = typeof v === "string" ? new Date(v) : null;
   return d && !Number.isNaN(d.getTime()) ? d : null;
 };
 
+const FILTRO_POR_STATUS = {
+  live: "starts_at <= NOW() AND ends_at > NOW()",
+  scheduled: "starts_at > NOW()",
+  ended: "ends_at <= NOW()",
+};
+
 lotsRouter.get("/", optionalAuth, async (req, res) => {
   const params = [];
-  const filtros = [];
+  const filtros = ["canceled_at IS NULL"];
   const status = req.query.status;
-  if (["live", "scheduled", "ended"].includes(status)) {
-    params.push(status);
-    filtros.push(`status = $${params.length}`);
+  if (Object.hasOwn(FILTRO_POR_STATUS, status)) {
+    filtros.push(FILTRO_POR_STATUS[status]);
   }
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   if (q) {
@@ -48,7 +54,6 @@ lotsRouter.get("/", optionalAuth, async (req, res) => {
       `(title ILIKE $${params.length} OR attributes::text ILIKE $${params.length})`,
     );
   }
-  const where = filtros.length ? `WHERE ${filtros.join(" AND ")}` : "";
   params.push(req.user?.id ?? 0);
   const usuario = `$${params.length}`;
   const { rows } = await pool.query(
@@ -56,8 +61,9 @@ lotsRouter.get("/", optionalAuth, async (req, res) => {
        SELECT ${LOT_FIELDS},
               (SELECT code FROM receipts r WHERE r.lot_id = lots.id AND r.winner_id = ${usuario}) AS my_receipt_code,
               ARRAY(SELECT DISTINCT bidder_id FROM bids b WHERE b.lot_id = lots.id) AS licitantes_ids
-       FROM lots WHERE canceled_at IS NULL     ) t
-     ${where}
+       FROM lots
+       WHERE ${filtros.join(" AND ")}
+     ) t
      ORDER BY CASE status WHEN 'live' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END,
               (CASE WHEN status = 'ended' THEN ends_at END) DESC NULLS LAST,
               (CASE WHEN status = 'live' THEN ends_at WHEN status = 'scheduled' THEN starts_at END) ASC`,
@@ -69,7 +75,11 @@ lotsRouter.get("/", optionalAuth, async (req, res) => {
       ...serializeLot(row),
       my_receipt_code: row.my_receipt_code,
       watchers: contarPresenca(row.id),
-      ...avaliarFimDoLeilao(row.licitantes_ids, usuariosNaSala(row.id)),
+      ...avaliarFimDoLeilao(
+        row.licitantes_ids,
+        usuariosNaSala(row.id),
+        config.encerramentoAntecipado,
+      ),
     })),
   });
 });
@@ -203,8 +213,8 @@ lotsRouter.get("/:id", optionalAuth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT ${LOT_FIELDS}, leader_id,
             EXISTS (SELECT 1 FROM bids b WHERE b.lot_id = lots.id AND b.bidder_id = $2) AS viewer_has_bid,
-                        EXISTS (SELECT 1 FROM withdrawals w WHERE w.lot_id = lots.id AND w.user_id = $2) AS viewer_withdrawn,
-                        (SELECT code FROM receipts r WHERE r.lot_id = lots.id AND r.winner_id = $2) AS viewer_receipt_code,
+            EXISTS (SELECT 1 FROM withdrawals w WHERE w.lot_id = lots.id AND w.user_id = $2) AS viewer_withdrawn,
+            (SELECT code FROM receipts r WHERE r.lot_id = lots.id AND r.winner_id = $2) AS viewer_receipt_code,
             ARRAY(SELECT DISTINCT bidder_id FROM bids b WHERE b.lot_id = lots.id) AS licitantes_ids,
             NOW() AS server_time
      FROM lots WHERE id = $1`,
@@ -215,7 +225,11 @@ lotsRouter.get("/:id", optionalAuth, async (req, res) => {
   res.json({
     lot: serializeLot(row),
     watchers: contarPresenca(row.id),
-    fim: avaliarFimDoLeilao(row.licitantes_ids, usuariosNaSala(row.id)),
+    fim: avaliarFimDoLeilao(
+      row.licitantes_ids,
+      usuariosNaSala(row.id),
+      config.encerramentoAntecipado,
+    ),
     server_time: row.server_time,
     viewer: {
       is_leader: Boolean(req.user) && row.leader_id === req.user.id,

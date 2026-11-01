@@ -1,4 +1,3 @@
-# Atalhos para testar a API na mao. 
 API=${API:-http://localhost:3000}
 JSON='Content-Type: application/json'
 

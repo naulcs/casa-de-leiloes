@@ -4,13 +4,15 @@ import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
 import { BidRejected, placeBid, withdrawFromLot } from "../services/bidding.js";
 import { bidderAlias } from "../services/integrity.js";
 import { announceBid, publishLotChange } from "../services/realtime.js";
-import { LOT_FIELDS, serializeLot } from "../services/lots.js";
+import {
+  LOT_FIELDS,
+  MAX_CENTS,
+  idValido,
+  serializeLot,
+} from "../services/lots.js";
 import { getWalletSummary } from "../services/wallet.js";
 
 export const bidsRouter = Router();
-
-const idValido = (valor) => /^\d{1,9}$/.test(valor);
-const MAX_CENTS = 100_000_000_00;
 
 bidsRouter.post(
   "/:id/bids",
