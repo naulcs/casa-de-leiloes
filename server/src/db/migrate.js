@@ -20,8 +20,8 @@ try {
     "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
   );
   console.log("Tabelas:", rows.map((r) => r.table_name).join(", "));
-} catch (erro) {
-  console.error("Erro ao criar tabelas:", erro.message);
+} catch (error) {
+  console.error("Erro ao criar tabelas:", error.message);
   process.exitCode = 1;
 } finally {
   await pool.end();

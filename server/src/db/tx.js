@@ -4,12 +4,12 @@ export async function withTransaction(fn) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const resultado = await fn(client);
+    const result = await fn(client);
     await client.query("COMMIT");
-    return resultado;
-  } catch (erro) {
+    return result;
+  } catch (error) {
     await client.query("ROLLBACK");
-    throw erro;
+    throw error;
   } finally {
     client.release();
   }

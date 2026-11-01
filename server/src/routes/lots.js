@@ -1,40 +1,21 @@
 import { Router } from "express";
-import { config } from "../config.js";
 import { pool } from "../db/pool.js";
-import { withTransaction } from "../db/tx.js";
 import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
-import {
-  ApiUnavailableError,
-  ItemNotFoundError,
-  downloadImage,
-  getAnt,
-} from "../services/inaturalist.js";
-import { sealNewLot } from "../services/integrity.js";
-import {
-  contarPresenca,
-  publishLotChange,
-  usuariosNaSala,
-} from "../services/realtime.js";
+import { cancelLot, createLot } from "../services/auctioneer.js";
+import { countWatchers, publishLotChange } from "../services/realtime.js";
 import {
   LOT_FIELDS,
-  MAX_CENTS,
-  avaliarFimDoLeilao,
-  idValido,
+  LotRejected,
+  isValidId,
   serializeLot,
 } from "../services/lots.js";
 
 export const lotsRouter = Router();
 
-const soLeiloeiro = [requireAuth, requireRole("auctioneer")];
-const UM_MINUTO = 60 * 1000;
+const auctioneerOnly = [requireAuth, requireRole("auctioneer")];
+const MAX_SEARCH_LENGTH = 100;
 
-const centavos = (v) => Number.isInteger(v) && v > 0 && v <= MAX_CENTS;
-const data = (v) => {
-  const d = typeof v === "string" ? new Date(v) : null;
-  return d && !Number.isNaN(d.getTime()) ? d : null;
-};
-
-const FILTRO_POR_STATUS = {
+const STATUS_FILTERS = {
   live: "starts_at <= NOW() AND ends_at > NOW()",
   scheduled: "starts_at > NOW()",
   ended: "ends_at <= NOW()",
@@ -42,27 +23,31 @@ const FILTRO_POR_STATUS = {
 
 lotsRouter.get("/", optionalAuth, async (req, res) => {
   const params = [];
-  const filtros = ["canceled_at IS NULL"];
+  const filters = ["canceled_at IS NULL"];
   const status = req.query.status;
-  if (Object.hasOwn(FILTRO_POR_STATUS, status)) {
-    filtros.push(FILTRO_POR_STATUS[status]);
+  if (Object.hasOwn(STATUS_FILTERS, status)) {
+    filters.push(STATUS_FILTERS[status]);
   }
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  if (q.length > MAX_SEARCH_LENGTH) {
+    return res.status(400).json({
+      error: `A busca pode ter no máximo ${MAX_SEARCH_LENGTH} caracteres.`,
+    });
+  }
   if (q) {
     params.push(`%${q.replace(/[\\%_]/g, "\\$&")}%`);
-    filtros.push(
+    filters.push(
       `(title ILIKE $${params.length} OR attributes::text ILIKE $${params.length})`,
     );
   }
   params.push(req.user?.id ?? 0);
-  const usuario = `$${params.length}`;
+  const userParam = `$${params.length}`;
   const { rows } = await pool.query(
     `SELECT * FROM (
        SELECT ${LOT_FIELDS},
-              (SELECT code FROM receipts r WHERE r.lot_id = lots.id AND r.winner_id = ${usuario}) AS my_receipt_code,
-              ARRAY(SELECT DISTINCT bidder_id FROM bids b WHERE b.lot_id = lots.id) AS licitantes_ids
+              (SELECT code FROM receipts r WHERE r.lot_id = lots.id AND r.winner_id = ${userParam}) AS my_receipt_code
        FROM lots
-       WHERE ${filtros.join(" AND ")}
+       WHERE ${filters.join(" AND ")}
      ) t
      ORDER BY CASE status WHEN 'live' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END,
               (CASE WHEN status = 'ended' THEN ends_at END) DESC NULLS LAST,
@@ -74,22 +59,17 @@ lotsRouter.get("/", optionalAuth, async (req, res) => {
     lots: rows.map((row) => ({
       ...serializeLot(row),
       my_receipt_code: row.my_receipt_code,
-      watchers: contarPresenca(row.id),
-      ...avaliarFimDoLeilao(
-        row.licitantes_ids,
-        usuariosNaSala(row.id),
-        config.encerramentoAntecipado,
-      ),
+      watchers: countWatchers(row.id),
     })),
   });
 });
 
-lotsRouter.get("/mine", ...soLeiloeiro, async (req, res) => {
+lotsRouter.get("/mine", ...auctioneerOnly, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT ${LOT_FIELDS} FROM lots WHERE auctioneer_id = $1 ORDER BY id DESC`,
     [req.user.id],
   );
-  const { rows: vendas } = await pool.query(
+  const { rows: sales } = await pool.query(
     `SELECT COALESCE(SUM(amount_cents), 0)::bigint AS total
      FROM wallet_transactions WHERE user_id = $1 AND type = 'sale'`,
     [req.user.id],
@@ -104,118 +84,31 @@ lotsRouter.get("/mine", ...soLeiloeiro, async (req, res) => {
             : { sold: false, amount_cents: 0 }
           : null,
     })),
-    total_received_cents: vendas[0].total,
+    total_received_cents: sales[0].total,
   });
 });
 
-lotsRouter.post("/", ...soLeiloeiro, async (req, res) => {
-  const { external_id, starting_bid_cents, min_increment_cents } =
-    req.body ?? {};
-  const agora = new Date();
-  const startsAt =
-    req.body?.starts_at === undefined ? agora : data(req.body.starts_at);
-  const endsAt = data(req.body?.ends_at);
-
-  if (typeof external_id !== "string" || !external_id) {
-    return res.status(400).json({ error: "Escolha uma formiga para leiloar." });
-  }
-  if (!centavos(starting_bid_cents) || !centavos(min_increment_cents)) {
-    return res.status(400).json({
-      error:
-        "Informe o lance inicial e o incremento mínimo (maiores que zero).",
-    });
-  }
-  if (!startsAt || !endsAt) {
-    return res
-      .status(400)
-      .json({ error: "Informe datas válidas de início e fim." });
-  }
-  if (endsAt <= agora) {
-    return res
-      .status(400)
-      .json({ error: "O fim do leilão precisa estar no futuro." });
-  }
-  if (endsAt <= startsAt) {
-    return res
-      .status(400)
-      .json({ error: "O fim do leilão precisa ser depois do início." });
-  }
-  if (endsAt - Math.max(startsAt, agora) < UM_MINUTO) {
-    return res
-      .status(400)
-      .json({ error: "O lote precisa durar pelo menos 1 minuto." });
-  }
-
-  let formiga;
+lotsRouter.post("/", ...auctioneerOnly, async (req, res) => {
   try {
-    formiga = await getAnt(external_id);
-  } catch (erro) {
-    if (erro instanceof ItemNotFoundError) {
-      return res.status(404).json({ error: erro.message });
+    const lot = await createLot(req.user.id, req.body ?? {});
+    publishLotChange(lot.id, { event: "created" }).catch(() => {});
+    res.status(201).json({ lot });
+  } catch (error) {
+    if (error instanceof LotRejected) {
+      return res.status(error.status).json({ error: error.message });
     }
-    if (erro instanceof ApiUnavailableError) {
-      return res.status(503).json({
-        error:
-          "A API de formigas está indisponível agora. Tente de novo em instantes.",
-      });
-    }
-    throw erro;
+    throw error;
   }
-  const imagem = await downloadImage(formiga.image_url);
-
-  const lotId = await withTransaction(async (client) => {
-    const { rows } = await client.query(
-      `INSERT INTO lots (auctioneer_id, external_source, external_id, title, image_url, attributes,
-                         starting_bid_cents, min_increment_cents, starts_at, ends_at)
-       VALUES ($1, 'inaturalist', $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id`,
-      [
-        req.user.id,
-        formiga.external_id,
-        formiga.title,
-        formiga.image_url,
-        formiga.attributes,
-        starting_bid_cents,
-        min_increment_cents,
-        startsAt,
-        endsAt,
-      ],
-    );
-    const selo = sealNewLot({
-      id: rows[0].id,
-      starting_bid_cents,
-      min_increment_cents,
-      starts_at: startsAt,
-    });
-    await client.query(
-      "UPDATE lots SET head_hash = $2, head_seal = $3 WHERE id = $1",
-      [rows[0].id, selo.head_hash, selo.head_seal],
-    );
-    if (imagem) {
-      await client.query(
-        "INSERT INTO lot_images (lot_id, content_type, data) VALUES ($1, $2, $3)",
-        [rows[0].id, imagem.contentType, imagem.data],
-      );
-    }
-    return rows[0].id;
-  });
-
-  const { rows } = await pool.query(
-    `SELECT ${LOT_FIELDS} FROM lots WHERE id = $1`,
-    [lotId],
-  );
-  res.status(201).json({ lot: serializeLot(rows[0]) });
 });
 
 lotsRouter.get("/:id", optionalAuth, async (req, res) => {
-  if (!idValido(req.params.id))
+  if (!isValidId(req.params.id))
     return res.status(404).json({ error: "Lote não encontrado." });
   const { rows } = await pool.query(
     `SELECT ${LOT_FIELDS}, leader_id,
             EXISTS (SELECT 1 FROM bids b WHERE b.lot_id = lots.id AND b.bidder_id = $2) AS viewer_has_bid,
             EXISTS (SELECT 1 FROM withdrawals w WHERE w.lot_id = lots.id AND w.user_id = $2) AS viewer_withdrawn,
             (SELECT code FROM receipts r WHERE r.lot_id = lots.id AND r.winner_id = $2) AS viewer_receipt_code,
-            ARRAY(SELECT DISTINCT bidder_id FROM bids b WHERE b.lot_id = lots.id) AS licitantes_ids,
             NOW() AS server_time
      FROM lots WHERE id = $1`,
     [req.params.id, req.user?.id ?? 0],
@@ -224,12 +117,7 @@ lotsRouter.get("/:id", optionalAuth, async (req, res) => {
   if (!row) return res.status(404).json({ error: "Lote não encontrado." });
   res.json({
     lot: serializeLot(row),
-    watchers: contarPresenca(row.id),
-    fim: avaliarFimDoLeilao(
-      row.licitantes_ids,
-      usuariosNaSala(row.id),
-      config.encerramentoAntecipado,
-    ),
+    watchers: countWatchers(row.id),
     server_time: row.server_time,
     viewer: {
       is_leader: Boolean(req.user) && row.leader_id === req.user.id,
@@ -241,7 +129,7 @@ lotsRouter.get("/:id", optionalAuth, async (req, res) => {
 });
 
 lotsRouter.get("/:id/image", async (req, res) => {
-  if (!idValido(req.params.id)) return res.status(404).end();
+  if (!isValidId(req.params.id)) return res.status(404).end();
   const { rows } = await pool.query(
     "SELECT content_type, data FROM lot_images WHERE lot_id = $1",
     [req.params.id],
@@ -252,39 +140,18 @@ lotsRouter.get("/:id/image", async (req, res) => {
   res.send(rows[0].data);
 });
 
-lotsRouter.post("/:id/cancel", ...soLeiloeiro, async (req, res) => {
-  if (!idValido(req.params.id))
+lotsRouter.post("/:id/cancel", ...auctioneerOnly, async (req, res) => {
+  if (!isValidId(req.params.id))
     return res.status(404).json({ error: "Lote não encontrado." });
-
-  const resultado = await withTransaction(async (client) => {
-    const { rows } = await client.query(
-      `SELECT id, bid_count, current_bid_cents, canceled_at, settled_at, (NOW() >= ends_at) AS ended
-       FROM lots WHERE id = $1 AND auctioneer_id = $2 FOR UPDATE`,
-      [req.params.id, req.user.id],
-    );
-    const lote = rows[0];
-    if (!lote) return { status: 404, error: "Lote não encontrado." };
-    if (lote.canceled_at)
-      return { status: 409, error: "Este lote já foi cancelado." };
-    if (lote.settled_at || lote.ended) {
-      return {
-        status: 409,
-        error: "Este lote já encerrou e não pode mais ser cancelado.",
-      };
+  const lotId = Number(req.params.id);
+  try {
+    const refunded = await cancelLot(req.user.id, lotId);
+    publishLotChange(lotId, { event: "canceled" }).catch(() => {});
+    res.json({ canceled: true, refunded_cents: refunded });
+  } catch (error) {
+    if (error instanceof LotRejected) {
+      return res.status(error.status).json({ error: error.message });
     }
-    await client.query("UPDATE lots SET canceled_at = NOW() WHERE id = $1", [
-      lote.id,
-    ]);
-    return {
-      status: 200,
-      refunded_cents: lote.bid_count > 0 ? lote.current_bid_cents : 0,
-    };
-  });
-
-  if (resultado.error)
-    return res.status(resultado.status).json({ error: resultado.error });
-  publishLotChange(Number(req.params.id), { event: "canceled" }).catch(
-    () => {},
-  );
-  res.json({ canceled: true, refunded_cents: resultado.refunded_cents });
+    throw error;
+  }
 });

@@ -9,17 +9,17 @@ receiptsRouter.get("/:code", async (req, res) => {
   if (!/^[A-Za-z0-9_-]{8,40}$/.test(req.params.code)) {
     return res.status(404).json({ error: "Comprovante não encontrado." });
   }
-  const { rows: recibos } = await pool.query(
+  const { rows: receipts } = await pool.query(
     "SELECT * FROM receipts WHERE code = $1",
     [req.params.code],
   );
-  const recibo = recibos[0];
-  if (!recibo)
+  const receipt = receipts[0];
+  if (!receipt)
     return res.status(404).json({ error: "Comprovante não encontrado." });
 
   const { rows } = await pool.query(
     `SELECT ${LOT_FIELDS}, leader_id, head_hash, head_seal FROM lots WHERE id = $1`,
-    [recibo.lot_id],
+    [receipt.lot_id],
   );
   const lot = rows[0];
   const { rows: bids } = await pool.query(
@@ -30,12 +30,12 @@ receiptsRouter.get("/:code", async (req, res) => {
 
   res.json({
     receipt: {
-      code: recibo.code,
-      issued_at: recibo.issued_at,
-      amount_cents: recibo.amount_cents,
-      bid_count: recibo.bid_count,
-      final_hash: recibo.final_hash,
-      winner: bidderAlias(lot.id, recibo.winner_id),
+      code: receipt.code,
+      issued_at: receipt.issued_at,
+      amount_cents: receipt.amount_cents,
+      bid_count: receipt.bid_count,
+      final_hash: receipt.final_hash,
+      winner: bidderAlias(lot.id, receipt.winner_id),
     },
     lot: {
       id: lot.id,
@@ -48,9 +48,9 @@ receiptsRouter.get("/:code", async (req, res) => {
       intact,
       problems,
       matches_receipt:
-        lot.head_hash === recibo.final_hash &&
-        lot.bid_count === recibo.bid_count &&
-        lot.current_bid_cents === recibo.amount_cents,
+        lot.head_hash === receipt.final_hash &&
+        lot.bid_count === receipt.bid_count &&
+        lot.current_bid_cents === receipt.amount_cents,
     },
   });
 });

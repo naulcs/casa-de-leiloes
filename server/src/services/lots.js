@@ -6,19 +6,72 @@ export const STATUS_SQL = `CASE
 END`;
 
 export const LOT_FIELDS = `id, title, attributes, starting_bid_cents, min_increment_cents,
-  starts_at, ends_at, current_bid_cents, bid_count, settled_at, early_end_at,
+  starts_at, ends_at, current_bid_cents, bid_count, settled_at,
   EXISTS (SELECT 1 FROM lot_images li WHERE li.lot_id = lots.id) AS has_image,
   ${STATUS_SQL} AS status`;
 
 export const MAX_CENTS = 100_000_000_00;
 
-export const idValido = (valor) => /^\d{1,9}$/.test(valor);
+export const isValidId = (value) => /^\d{1,9}$/.test(value);
 
-export const PRORROGACAO_MS = 2 * 60 * 1000;
+export const EXTENSION_MS = 2 * 60 * 1000;
 
-export function prorrogarFim(fimAtual, momentoDoLance) {
-  const limite = new Date(momentoDoLance.getTime() + PRORROGACAO_MS);
-  return limite > fimAtual ? limite : fimAtual;
+export class LotRejected extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+const ONE_MINUTE = 60 * 1000;
+
+const isValidCents = (value) =>
+  Number.isInteger(value) && value > 0 && value <= MAX_CENTS;
+
+const parseDate = (value) => {
+  const date = typeof value === "string" ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date : null;
+};
+
+export function validateLot(input, now) {
+  const { external_id, starting_bid_cents, min_increment_cents } = input;
+  const startsAt =
+    input.starts_at === undefined ? now : parseDate(input.starts_at);
+  const endsAt = parseDate(input.ends_at);
+
+  if (typeof external_id !== "string" || !external_id) {
+    throw new LotRejected(400, "Escolha uma formiga para leiloar.");
+  }
+  if (!isValidCents(starting_bid_cents) || !isValidCents(min_increment_cents)) {
+    throw new LotRejected(
+      400,
+      "Informe o lance inicial e o incremento mínimo (maiores que zero).",
+    );
+  }
+  if (!startsAt || !endsAt) {
+    throw new LotRejected(400, "Informe datas válidas de início e fim.");
+  }
+  if (endsAt <= now) {
+    throw new LotRejected(400, "O fim do leilão precisa estar no futuro.");
+  }
+  if (endsAt <= startsAt) {
+    throw new LotRejected(400, "O fim do leilão precisa ser depois do início.");
+  }
+  if (endsAt - Math.max(startsAt, now) < ONE_MINUTE) {
+    throw new LotRejected(400, "O lote precisa durar pelo menos 1 minuto.");
+  }
+  return {
+    externalId: external_id,
+    startingBidCents: starting_bid_cents,
+    minIncrementCents: min_increment_cents,
+    startsAt,
+    endsAt,
+  };
+}
+
+export function extendEnd(currentEnd, bidTime) {
+  const limit = new Date(bidTime.getTime() + EXTENSION_MS);
+  return limit > currentEnd ? limit : currentEnd;
 }
 
 export function nextMinBid(lot) {
@@ -42,16 +95,5 @@ export function serializeLot(row) {
     min_next_bid_cents: nextMinBid(row),
     status: row.status,
     settled: Boolean(row.settled_at),
-  };
-}
-
-export function avaliarFimDoLeilao(licitantes, presentes, ligado = true) {
-  const naSala = licitantes.filter((id) => presentes.has(id)).length;
-  const encerra = ligado && licitantes.length >= 2 && naSala >= 1;
-  return {
-    licitantes: licitantes.length,
-    licitantes_na_sala: naSala,
-    encerra_no_minuto_final: encerra,
-    aviso_minuto_final: encerra && naSala < licitantes.length,
   };
 }

@@ -5,8 +5,8 @@ if (!config.auditSecret) {
   throw new Error("Faltou AUDIT_SECRET no arquivo server/.env");
 }
 
-const hmac = (texto) =>
-  createHmac("sha256", config.auditSecret).update(texto).digest("hex");
+const hmac = (text) =>
+  createHmac("sha256", config.auditSecret).update(text).digest("hex");
 const iso = (data) => new Date(data).toISOString();
 
 export const genesisHash = (lot) =>
@@ -53,10 +53,10 @@ export function verifyLot(lot, bids) {
 
   let prevHash = genesisHash(lot);
   bids.forEach((bid, i) => {
-    const esperado = i + 1;
-    if (bid.seq !== esperado) {
+    const expected = i + 1;
+    if (bid.seq !== expected) {
       problems.push(
-        `Sequência quebrada: esperado o lance #${esperado}, mas veio o #${bid.seq} (lance removido ou inserido).`,
+        `Sequência quebrada: esperado o lance #${expected}, mas veio o #${bid.seq} (lance removido ou inserido).`,
       );
     }
     if (bid.prev_hash !== prevHash) {
@@ -65,29 +65,29 @@ export function verifyLot(lot, bids) {
     if (bidHash(bid) !== bid.hash) {
       problems.push(`Lance #${bid.seq}: o conteúdo foi alterado.`);
     }
-    const anterior = bids[i - 1];
-    const minimo = anterior
-      ? anterior.amount_cents + lot.min_increment_cents
+    const previous = bids[i - 1];
+    const minimum = previous
+      ? previous.amount_cents + lot.min_increment_cents
       : lot.starting_bid_cents;
-    if (bid.amount_cents < minimo) {
+    if (bid.amount_cents < minimum) {
       problems.push(
         `Lance #${bid.seq}: valor abaixo do mínimo permitido na época.`,
       );
     }
-    if (anterior && anterior.bidder_id === bid.bidder_id) {
+    if (previous && previous.bidder_id === bid.bidder_id) {
       problems.push(`Lance #${bid.seq}: o líder cobriu o próprio lance.`);
     }
     prevHash = bid.hash;
   });
 
-  const ultimo = bids.at(-1);
-  const topoEsperado = ultimo ? ultimo.hash : genesisHash(lot);
+  const lastBid = bids.at(-1);
+  const expectedHead = lastBid ? lastBid.hash : genesisHash(lot);
   if (lot.bid_count !== bids.length) {
     problems.push(
       `O lote registra ${lot.bid_count} lances, mas o histórico tem ${bids.length}.`,
     );
   }
-  if (lot.head_hash !== topoEsperado) {
+  if (lot.head_hash !== expectedHead) {
     problems.push("O fim do histórico não confere com o registro do lote.");
   }
   if (
@@ -96,16 +96,16 @@ export function verifyLot(lot, bids) {
   ) {
     problems.push("O selo do lote é inválido.");
   }
-  if ((lot.current_bid_cents ?? null) !== (ultimo?.amount_cents ?? null)) {
+  if ((lot.current_bid_cents ?? null) !== (lastBid?.amount_cents ?? null)) {
     problems.push("O lance atual do lote não confere com o histórico.");
   }
-  if ((lot.leader_id ?? null) !== (ultimo?.bidder_id ?? null)) {
+  if ((lot.leader_id ?? null) !== (lastBid?.bidder_id ?? null)) {
     problems.push("O líder do lote não confere com o histórico.");
   }
   if (
-    ultimo &&
+    lastBid &&
     new Date(lot.ends_at).getTime() !==
-      new Date(lot.early_end_at ?? ultimo.ends_at_after).getTime()
+      new Date(lastBid.ends_at_after).getTime()
   ) {
     problems.push("O horário de encerramento do lote foi alterado.");
   }

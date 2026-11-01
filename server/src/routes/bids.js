@@ -7,7 +7,7 @@ import { announceBid, publishLotChange } from "../services/realtime.js";
 import {
   LOT_FIELDS,
   MAX_CENTS,
-  idValido,
+  isValidId,
   serializeLot,
 } from "../services/lots.js";
 import { getWalletSummary } from "../services/wallet.js";
@@ -19,7 +19,7 @@ bidsRouter.post(
   requireAuth,
   requireRole("bidder"),
   async (req, res) => {
-    if (!idValido(req.params.id))
+    if (!isValidId(req.params.id))
       return res.status(404).json({ error: "Lote não encontrado." });
     const amount = req.body?.amount_cents;
     if (!Number.isInteger(amount) || amount <= 0 || amount > MAX_CENTS) {
@@ -30,13 +30,13 @@ bidsRouter.post(
     }
 
     try {
-      const resultado = await placeBid({
+      const result = await placeBid({
         lotId: Number(req.params.id),
         userId: req.user.id,
         amountCents: amount,
       });
-      const { bid, extended } = resultado;
-      announceBid(resultado);
+      const { bid, extended } = result;
+      announceBid(result);
       const { rows } = await pool.query(
         `SELECT ${LOT_FIELDS} FROM lots WHERE id = $1`,
         [bid.lot_id],
@@ -51,24 +51,24 @@ bidsRouter.post(
         lot: serializeLot(rows[0]),
         wallet: await getWalletSummary(req.user.id),
       });
-    } catch (erro) {
-      if (erro instanceof BidRejected) {
-        const status = erro.code === "not_found" ? 404 : 409;
+    } catch (error) {
+      if (error instanceof BidRejected) {
+        const status = error.code === "not_found" ? 404 : 409;
         return res
           .status(status)
-          .json({ error: erro.message, code: erro.code, ...erro.extra });
+          .json({ error: error.message, code: error.code, ...error.extra });
       }
-      throw erro;
+      throw error;
     }
   },
 );
 
 bidsRouter.get("/:id/bids", optionalAuth, async (req, res) => {
-  if (!idValido(req.params.id))
+  if (!isValidId(req.params.id))
     return res.status(404).json({ error: "Lote não encontrado." });
   const lotId = Number(req.params.id);
-  const lote = await pool.query("SELECT 1 FROM lots WHERE id = $1", [lotId]);
-  if (!lote.rows[0])
+  const lot = await pool.query("SELECT 1 FROM lots WHERE id = $1", [lotId]);
+  if (!lot.rows[0])
     return res.status(404).json({ error: "Lote não encontrado." });
 
   const { rows } = await pool.query(
@@ -91,7 +91,7 @@ bidsRouter.post(
   requireAuth,
   requireRole("bidder"),
   async (req, res) => {
-    if (!idValido(req.params.id))
+    if (!isValidId(req.params.id))
       return res.status(404).json({ error: "Lote não encontrado." });
     try {
       await withdrawFromLot({
@@ -102,14 +102,14 @@ bidsRouter.post(
         () => {},
       );
       res.json({ withdrawn: true });
-    } catch (erro) {
-      if (erro instanceof BidRejected) {
-        const status = erro.code === "not_found" ? 404 : 409;
+    } catch (error) {
+      if (error instanceof BidRejected) {
+        const status = error.code === "not_found" ? 404 : 409;
         return res
           .status(status)
-          .json({ error: erro.message, code: erro.code });
+          .json({ error: error.message, code: error.code });
       }
-      throw erro;
+      throw error;
     }
   },
 );

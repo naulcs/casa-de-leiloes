@@ -18,12 +18,12 @@ meRouter.get("/bids", requireAuth, requireRole("bidder"), async (req, res) => {
 
   res.json({
     lots: rows.map((row) => {
-      const lider = row.leader_id === req.user.id;
+      const leader = row.leader_id === req.user.id;
       let outcome;
       if (row.status === "canceled") outcome = "canceled";
       else if (row.status === "ended")
-        outcome = lider ? (row.settled_at ? "won" : "won_pending") : "lost";
-      else outcome = lider ? "leading" : "outbid";
+        outcome = leader ? (row.settled_at ? "won" : "won_pending") : "lost";
+      else outcome = leader ? "leading" : "outbid";
       return {
         ...serializeLot(row),
         outcome,

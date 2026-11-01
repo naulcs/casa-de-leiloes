@@ -7,5 +7,4 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL,
   jwtSecret: process.env.JWT_SECRET,
   auditSecret: process.env.AUDIT_SECRET,
-  encerramentoAntecipado: process.env.ENCERRAMENTO_ANTECIPADO === "1",
 };

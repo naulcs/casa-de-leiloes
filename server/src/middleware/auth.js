@@ -29,10 +29,10 @@ export function requireAuth(req, res, next) {
   try {
     req.user = readUser(token);
     next();
-  } catch (erro) {
-    const expirou = erro.name === "TokenExpiredError";
+  } catch (error) {
+    const expired = error.name === "TokenExpiredError";
     res.status(401).json({
-      error: expirou
+      error: expired
         ? "Sessão expirada. Faça login novamente."
         : "Token inválido. Faça login novamente.",
     });

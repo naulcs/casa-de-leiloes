@@ -5,18 +5,18 @@ import { placeBid } from "../services/bidding.js";
 import { downloadImage, searchAnts } from "../services/inaturalist.js";
 import { sealNewLot } from "../services/integrity.js";
 
-const SENHA = "123456";
-const DEPOSITO_INICIAL = 50000;
-const MINUTO = 60000;
-const DIA = 24 * 60 * MINUTO;
+const PASSWORD = "123456";
+const INITIAL_DEPOSIT = 50000;
+const MINUTE = 60000;
+const DAY = 24 * 60 * MINUTE;
 
-const USUARIOS = [
+const USERS = [
   { name: "Leo", email: "leiloeiro@exemplo.com", role: "auctioneer" },
   { name: "Ana", email: "ana@exemplo.com", role: "bidder" },
   { name: "Bia", email: "bia@exemplo.com", role: "bidder" },
 ];
 
-const LOTES_RESERVA = [
+const FALLBACK_LOTS = [
   {
     external_id: "ao-vivo",
     title: "Formiga cortadeira",
@@ -37,21 +37,21 @@ const LOTES_RESERVA = [
   },
 ];
 
-async function depositar(userId) {
+async function deposit(userId) {
   await withTransaction(async (client) => {
     await client.query(
       "UPDATE users SET balance_cents = balance_cents + $1 WHERE id = $2",
-      [DEPOSITO_INICIAL, userId],
+      [INITIAL_DEPOSIT, userId],
     );
     await client.query(
       "INSERT INTO wallet_transactions (user_id, type, amount_cents) VALUES ($1, 'deposit', $2)",
-      [userId, DEPOSITO_INICIAL],
+      [userId, INITIAL_DEPOSIT],
     );
   });
 }
 
-async function criarUsuario({ name, email, role }) {
-  const hash = await bcrypt.hash(SENHA, 10);
+async function createUser({ name, email, role }) {
+  const hash = await bcrypt.hash(PASSWORD, 10);
   const { rows } = await pool.query(
     `INSERT INTO users (name, email, password_hash, role)
      VALUES ($1, $2, $3, $4)
@@ -60,17 +60,17 @@ async function criarUsuario({ name, email, role }) {
     [name, email, hash, role],
   );
   if (rows[0]) {
-    if (role === "bidder") await depositar(rows[0].id);
+    if (role === "bidder") await deposit(rows[0].id);
     return rows[0].id;
   }
-  const { rows: existentes } = await pool.query(
+  const { rows: existing } = await pool.query(
     "SELECT id FROM users WHERE email = $1",
     [email],
   );
-  return existentes[0].id;
+  return existing[0].id;
 }
 
-async function limparNomesAntigos() {
+async function cleanOldNames() {
   const { rowCount } = await pool.query(
     `UPDATE lots
      SET title = regexp_replace(title, '\\s*-\\s*', ' ', 'g'),
@@ -87,35 +87,35 @@ async function limparNomesAntigos() {
   return rowCount;
 }
 
-async function buscarEspecies() {
+async function fetchSpecies() {
   try {
     const { items } = await searchAnts("formiga", 1);
-    const vistos = new Set();
+    const seen = new Set();
     return items
       .filter((item) => {
-        if (vistos.has(item.title)) return false;
-        vistos.add(item.title);
+        if (seen.has(item.title)) return false;
+        seen.add(item.title);
         return true;
       })
       .slice(0, 8);
   } catch {
-    return LOTES_RESERVA;
+    return FALLBACK_LOTS;
   }
 }
 
-async function criarLote({ auctioneerId, especie, startsAt, endsAt }) {
-  const externalId = especie.image_url
-    ? `especie-${especie.external_id}`
-    : especie.external_id;
-  const { rows: existentes } = await pool.query(
+async function createSeedLot({ auctioneerId, species, startsAt, endsAt }) {
+  const externalId = species.image_url
+    ? `especie-${species.external_id}`
+    : species.external_id;
+  const { rows: existing } = await pool.query(
     `SELECT id, bid_count FROM lots
      WHERE external_source = 'seed' AND external_id = $1
        AND canceled_at IS NULL AND ends_at > NOW()`,
     [externalId],
   );
-  if (existentes[0]) return existentes[0];
+  if (existing[0]) return existing[0];
 
-  const imagem = await downloadImage(especie.image_url);
+  const image = await downloadImage(species.image_url);
 
   return withTransaction(async (client) => {
     const { rows } = await client.query(
@@ -126,14 +126,14 @@ async function criarLote({ auctioneerId, especie, startsAt, endsAt }) {
       [
         auctioneerId,
         externalId,
-        especie.title,
-        especie.image_url,
-        especie.attributes,
+        species.title,
+        species.image_url,
+        species.attributes,
         startsAt,
         endsAt,
       ],
     );
-    const selo = sealNewLot({
+    const seal = sealNewLot({
       id: rows[0].id,
       starting_bid_cents: 10000,
       min_increment_cents: 500,
@@ -141,41 +141,41 @@ async function criarLote({ auctioneerId, especie, startsAt, endsAt }) {
     });
     await client.query(
       "UPDATE lots SET head_hash = $2, head_seal = $3 WHERE id = $1",
-      [rows[0].id, selo.head_hash, selo.head_seal],
+      [rows[0].id, seal.head_hash, seal.head_seal],
     );
-    if (imagem) {
+    if (image) {
       await client.query(
         "INSERT INTO lot_images (lot_id, content_type, data) VALUES ($1, $2, $3)",
-        [rows[0].id, imagem.contentType, imagem.data],
+        [rows[0].id, image.contentType, image.data],
       );
     }
     return rows[0];
   });
 }
 
-async function darLances(lote, lances) {
-  if (lote.bid_count > 0) return;
-  for (const [userId, amountCents] of lances) {
+async function placeSeedBids(lot, bids) {
+  if (lot.bid_count > 0) return;
+  for (const [userId, amountCents] of bids) {
     try {
-      await placeBid({ lotId: lote.id, userId, amountCents });
-    } catch (erro) {
-      console.log(`Lance não aplicado no lote ${lote.id}: ${erro.message}`);
+      await placeBid({ lotId: lot.id, userId, amountCents });
+    } catch (error) {
+      console.log(`Lance não aplicado no lote ${lot.id}: ${error.message}`);
     }
   }
 }
 
 async function main() {
-  const leiloeiro = await criarUsuario(USUARIOS[0]);
-  const ana = await criarUsuario(USUARIOS[1]);
-  const bia = await criarUsuario(USUARIOS[2]);
+  const auctioneer = await createUser(USERS[0]);
+  const ana = await createUser(USERS[1]);
+  const bia = await createUser(USERS[2]);
 
-  const corrigidos = await limparNomesAntigos();
+  const fixedNames = await cleanOldNames();
 
-  const agora = Date.now();
-  const emMinutos = (minutos) => new Date(agora + minutos * MINUTO);
-  const emDias = (dias) => new Date(agora + dias * DIA);
-  const especies = await buscarEspecies();
-  const lancesPorLote = [
+  const now = Date.now();
+  const inMinutes = (minutes) => new Date(now + minutes * MINUTE);
+  const inDays = (days) => new Date(now + days * DAY);
+  const speciesList = await fetchSpecies();
+  const bidsPerLot = [
     [
       [ana, 10000],
       [bia, 10500],
@@ -188,34 +188,34 @@ async function main() {
     ],
   ];
 
-  let aoVivo = 0;
-  let agendados = 0;
-  for (const [posicao, especie] of especies.entries()) {
-    const agendado = posicao % 2 === 1 && posicao > 2;
-    const lote = await criarLote({
-      auctioneerId: leiloeiro,
-      especie,
-      startsAt: agendado ? emDias(1 + posicao * 0.25) : emMinutos(-5),
-      endsAt: agendado ? emDias(4 + posicao * 0.25) : emDias(3 + posicao),
+  let liveCount = 0;
+  let scheduledCount = 0;
+  for (const [position, species] of speciesList.entries()) {
+    const isScheduled = position % 2 === 1 && position > 2;
+    const lot = await createSeedLot({
+      auctioneerId: auctioneer,
+      species,
+      startsAt: isScheduled ? inDays(1 + position * 0.25) : inMinutes(-5),
+      endsAt: isScheduled ? inDays(4 + position * 0.25) : inDays(3 + position),
     });
-    if (agendado) {
-      agendados += 1;
+    if (isScheduled) {
+      scheduledCount += 1;
     } else {
-      aoVivo += 1;
-      await darLances(lote, lancesPorLote[aoVivo - 1] ?? []);
+      liveCount += 1;
+      await placeSeedBids(lot, bidsPerLot[liveCount - 1] ?? []);
     }
   }
 
   console.log("Dados de teste prontos:");
   console.log("- 1 leiloeiro: leiloeiro@exemplo.com");
   console.log("- 2 licitantes: ana@exemplo.com e bia@exemplo.com");
-  console.log(`- ${aoVivo} lotes ao vivo e ${agendados} agendados`);
-  console.log(`- ${corrigidos} nomes antigos corrigidos (sem "-")`);
+  console.log(`- ${liveCount} lotes ao vivo e ${scheduledCount} agendados`);
+  console.log(`- ${fixedNames} nomes antigos corrigidos (sem "-")`);
 }
 
 main()
-  .catch((erro) => {
-    console.error("Falha ao criar os dados de teste:", erro.message);
+  .catch((error) => {
+    console.error("Falha ao criar os dados de teste:", error.message);
     process.exitCode = 1;
   })
   .finally(() => pool.end());

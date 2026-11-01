@@ -2,16 +2,30 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { pool } from "../db/pool.js";
 import { requireAuth, signToken } from "../middleware/auth.js";
+import { limitFailedAttempts } from "../middleware/rateLimit.js";
 
 export const authRouter = Router();
 
 const ROLES = ["auctioneer", "bidder"];
-const texto = (valor) => (typeof valor === "string" ? valor.trim() : "");
+const FIFTEEN_MINUTES = 15 * 60 * 1000;
+const TOO_MANY_ATTEMPTS =
+  "Muitas tentativas seguidas. Espere alguns minutos e tente de novo.";
+const registerLimit = limitFailedAttempts({
+  windowMs: FIFTEEN_MINUTES,
+  max: 10,
+  message: TOO_MANY_ATTEMPTS,
+});
+const loginLimit = limitFailedAttempts({
+  windowMs: FIFTEEN_MINUTES,
+  max: 10,
+  message: TOO_MANY_ATTEMPTS,
+});
+const trimmed = (value) => (typeof value === "string" ? value.trim() : "");
 
-authRouter.post("/register", async (req, res) => {
+authRouter.post("/register", registerLimit, async (req, res) => {
   const { password, role } = req.body ?? {};
-  const name = texto(req.body?.name);
-  const email = texto(req.body?.email).toLowerCase();
+  const name = trimmed(req.body?.name);
+  const email = trimmed(req.body?.email).toLowerCase();
 
   if (!name || !email || typeof password !== "string") {
     return res.status(400).json({ error: "Preencha nome, e-mail e senha." });
@@ -39,37 +53,37 @@ authRouter.post("/register", async (req, res) => {
       [name, email, passwordHash, role],
     );
     res.status(201).json({ token: signToken(rows[0]), user: rows[0] });
-  } catch (erro) {
-    if (erro.code === "23505") {
+  } catch (error) {
+    if (error.code === "23505") {
       return res.status(409).json({ error: "Este e-mail já está cadastrado." });
     }
-    throw erro;
+    throw error;
   }
 });
 
-authRouter.post("/login", async (req, res) => {
-  const email = texto(req.body?.email).toLowerCase();
+authRouter.post("/login", loginLimit, async (req, res) => {
+  const email = trimmed(req.body?.email).toLowerCase();
   const password = req.body?.password;
 
   const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [
     email,
   ]);
   const user = rows[0];
-  const senhaOk =
+  const passwordOk =
     user &&
     typeof password === "string" &&
     (await bcrypt.compare(password, user.password_hash));
-  if (!senhaOk) {
+  if (!passwordOk) {
     return res.status(401).json({ error: "E-mail ou senha incorretos." });
   }
 
-  const publico = {
+  const publicUser = {
     id: user.id,
     name: user.name,
     email: user.email,
     role: user.role,
   };
-  res.json({ token: signToken(publico), user: publico });
+  res.json({ token: signToken(publicUser), user: publicUser });
 });
 
 authRouter.get("/me", requireAuth, async (req, res) => {

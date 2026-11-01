@@ -1,6 +1,6 @@
 import { withTransaction } from "../db/tx.js";
 import { bidHash, genesisHash, headSeal } from "./integrity.js";
-import { nextMinBid, prorrogarFim } from "./lots.js";
+import { nextMinBid, extendEnd } from "./lots.js";
 import { getWalletSummary } from "./wallet.js";
 
 export class BidRejected extends Error {
@@ -11,8 +11,8 @@ export class BidRejected extends Error {
   }
 }
 
-const reais = (centavos) =>
-  (centavos / 100).toLocaleString("pt-BR", {
+const formatCurrency = (cents) =>
+  (cents / 100).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   });
@@ -25,13 +25,13 @@ export function placeBid({ lotId, userId, amountCents }) {
     );
     const lot = rows[0];
     if (!lot) throw new BidRejected("not_found", "Lote não encontrado.");
-    const agora = lot.now;
+    const now = lot.now;
 
     if (lot.canceled_at)
       throw new BidRejected("canceled", "Este lote foi cancelado.");
-    if (agora < lot.starts_at)
+    if (now < lot.starts_at)
       throw new BidRejected("not_started", "Este lote ainda não começou.");
-    if (lot.settled_at || agora >= lot.ends_at) {
+    if (lot.settled_at || now >= lot.ends_at) {
       throw new BidRejected("ended", "Este lote já foi encerrado.");
     }
     if (lot.leader_id === userId) {
@@ -40,36 +40,36 @@ export function placeBid({ lotId, userId, amountCents }) {
         "Você já está ganhando este lote.",
       );
     }
-    const { rows: desistiu } = await client.query(
+    const { rows: hasWithdrawn } = await client.query(
       "SELECT 1 FROM withdrawals WHERE lot_id = $1 AND user_id = $2",
       [lotId, userId],
     );
-    if (desistiu[0]) {
+    if (hasWithdrawn[0]) {
       throw new BidRejected("withdrawn", "Você desistiu deste lote.");
     }
-    const minimo = nextMinBid(lot);
-    if (amountCents < minimo) {
+    const minimum = nextMinBid(lot);
+    if (amountCents < minimum) {
       throw new BidRejected(
         "below_minimum",
-        `Lance abaixo do mínimo. O lance mínimo agora é ${reais(minimo)}.`,
-        { minimum_cents: minimo },
+        `Lance abaixo do mínimo. O lance mínimo agora é ${formatCurrency(minimum)}.`,
+        { minimum_cents: minimum },
       );
     }
 
     await client.query("SELECT id FROM users WHERE id = $1 FOR UPDATE", [
       userId,
     ]);
-    const carteira = await getWalletSummary(userId, client);
-    if (!carteira || carteira.available_cents < amountCents) {
+    const wallet = await getWalletSummary(userId, client);
+    if (!wallet || wallet.available_cents < amountCents) {
       throw new BidRejected(
         "insufficient_funds",
-        `Saldo insuficiente. Você tem ${reais(carteira?.available_cents ?? 0)} disponível.`,
-        { available_cents: carteira?.available_cents ?? 0 },
+        `Saldo insuficiente. Você tem ${formatCurrency(wallet?.available_cents ?? 0)} disponível.`,
+        { available_cents: wallet?.available_cents ?? 0 },
       );
     }
 
-    const endsAtAfter = prorrogarFim(lot.ends_at, agora);
-    const estende = endsAtAfter > lot.ends_at;
+    const endsAtAfter = extendEnd(lot.ends_at, now);
+    const wasExtended = endsAtAfter > lot.ends_at;
 
     if (lot.bid_count > 0 && !lot.head_hash)
       throw new Error("Lote com lances e sem selo.");
@@ -78,7 +78,7 @@ export function placeBid({ lotId, userId, amountCents }) {
       seq: lot.bid_count + 1,
       bidder_id: userId,
       amount_cents: amountCents,
-      placed_at: agora,
+      placed_at: now,
       ends_at_after: endsAtAfter,
       prev_hash: lot.head_hash ?? genesisHash(lot),
     };
@@ -114,7 +114,7 @@ export function placeBid({ lotId, userId, amountCents }) {
       ],
     );
 
-    return { bid, extended: estende, previousLeaderId: lot.leader_id };
+    return { bid, extended: wasExtended, previousLeaderId: lot.leader_id };
   });
 }
 
@@ -138,22 +138,22 @@ export function withdrawFromLot({ lotId, userId }) {
       );
     }
 
-    const { rows: participou } = await client.query(
+    const { rows: participated } = await client.query(
       "SELECT 1 FROM bids WHERE lot_id = $1 AND bidder_id = $2 LIMIT 1",
       [lotId, userId],
     );
-    if (!participou[0]) {
+    if (!participated[0]) {
       throw new BidRejected(
         "not_bidder",
         "Você ainda não deu lances neste lote.",
       );
     }
 
-    const { rows: jaDesistiu } = await client.query(
+    const { rows: alreadyWithdrew } = await client.query(
       "SELECT 1 FROM withdrawals WHERE lot_id = $1 AND user_id = $2",
       [lotId, userId],
     );
-    if (jaDesistiu[0]) {
+    if (alreadyWithdrew[0]) {
       throw new BidRejected("withdrawn", "Você já desistiu deste lote.");
     }
 

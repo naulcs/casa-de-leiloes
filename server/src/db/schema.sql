@@ -80,8 +80,6 @@ CREATE TABLE IF NOT EXISTS withdrawals (
   PRIMARY KEY (lot_id, user_id)
 );
 
-ALTER TABLE lots ADD COLUMN IF NOT EXISTS early_end_at TIMESTAMPTZ;
-
 CREATE INDEX IF NOT EXISTS bids_bidder_idx ON bids (bidder_id, lot_id);
 
 CREATE INDEX IF NOT EXISTS lots_active_leader_idx

@@ -15,21 +15,26 @@ catalogRouter.get(
         .status(400)
         .json({ error: "Digite pelo menos 2 letras para buscar." });
     }
-    const pagina = Math.min(
+    if (q.length > 100) {
+      return res
+        .status(400)
+        .json({ error: "A busca pode ter no máximo 100 caracteres." });
+    }
+    const page = Math.min(
       Math.max(Number.parseInt(req.query.page, 10) || 1, 1),
       50,
     );
     try {
-      const { items, hasMore, stale } = await searchAnts(q, pagina);
-      res.json({ items, page: pagina, has_more: hasMore, stale });
-    } catch (erro) {
-      if (erro instanceof ApiUnavailableError) {
+      const { items, hasMore, stale } = await searchAnts(q, page);
+      res.json({ items, page, has_more: hasMore, stale });
+    } catch (error) {
+      if (error instanceof ApiUnavailableError) {
         return res.status(503).json({
           error:
             "A API de formigas está indisponível agora. Tente de novo em instantes.",
         });
       }
-      throw erro;
+      throw error;
     }
   },
 );
