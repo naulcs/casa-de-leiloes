@@ -1,54 +1,46 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, getToken, setToken } from "./api.js";
-
-const AuthContext = createContext(null);
+import { AuthContext } from "./useAuth.js";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [carregando, setCarregando] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(getToken()));
 
   useEffect(() => {
-    if (!getToken()) {
-      setCarregando(false);
-      return;
-    }
+    if (!getToken()) return;
     api("/auth/me")
       .then((data) => setUser(data.user))
       .catch(() => setToken(null))
-      .finally(() => setCarregando(false));
+      .finally(() => setLoading(false));
   }, []);
 
-  async function guardarSessao(data) {
+  async function saveSession(data) {
     setToken(data.token);
     setUser(data.user);
     return data.user;
   }
 
-  async function entrar(email, password) {
+  async function login(email, password) {
     const data = await api("/auth/login", {
       method: "POST",
       body: { email, password },
     });
-    return guardarSessao(data);
+    return saveSession(data);
   }
 
-  async function cadastrar(dados) {
-    const data = await api("/auth/register", { method: "POST", body: dados });
-    return guardarSessao(data);
+  async function register(payload) {
+    const data = await api("/auth/register", { method: "POST", body: payload });
+    return saveSession(data);
   }
 
-  function sair() {
+  function logout() {
     setToken(null);
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, carregando, entrar, cadastrar, sair }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
 }

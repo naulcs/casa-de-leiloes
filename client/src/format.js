@@ -1,31 +1,31 @@
-export function formatarReais(centavos) {
-  return (centavos / 100).toLocaleString("pt-BR", {
+export function formatCurrency(cents) {
+  return (cents / 100).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   });
 }
 
-export function formatarTempo(ms) {
+export function formatDuration(ms) {
   if (ms <= 0) return "00:00";
   const total = Math.floor(ms / 1000);
-  const dias = Math.floor(total / 86400);
-  const horas = Math.floor((total % 86400) / 3600);
-  const minutos = Math.floor((total % 3600) / 60);
-  const segundos = total % 60;
-  const doisDigitos = (valor) => String(valor).padStart(2, "0");
-  if (dias > 0) {
-    return `${dias}d ${doisDigitos(horas)}h ${doisDigitos(minutos)}min`;
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const twoDigits = (value) => String(value).padStart(2, "0");
+  if (days > 0) {
+    return `${days}d ${twoDigits(hours)}h ${twoDigits(minutes)}min`;
   }
-  if (horas > 0) {
-    return `${doisDigitos(horas)}:${doisDigitos(minutos)}:${doisDigitos(segundos)}`;
+  if (hours > 0) {
+    return `${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}`;
   }
-  return `${doisDigitos(minutos)}:${doisDigitos(segundos)}`;
+  return `${twoDigits(minutes)}:${twoDigits(seconds)}`;
 }
 
-export function contarLances(quantidade) {
-  return `${quantidade} ${quantidade === 1 ? "lance" : "lances"}`;
+export function formatBidCount(count) {
+  return `${count} ${count === 1 ? "lance" : "lances"}`;
 }
 
-export function reaisParaCentavos(texto) {
-  return Math.round(Number(String(texto).replace(",", ".")) * 100);
+export function reaisToCents(text) {
+  return Math.round(Number(String(text).replace(",", ".")) * 100);
 }

@@ -27,10 +27,10 @@ export async function api(path, { method = "GET", body, token } = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const erro = new Error(data.error || "Erro inesperado.");
-    erro.status = res.status;
-    erro.data = data;
-    throw erro;
+    const error = new Error(data.error || "Erro inesperado.");
+    error.status = res.status;
+    error.data = data;
+    throw error;
   }
   return data;
 }

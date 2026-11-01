@@ -1,63 +1,68 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../auth.jsx";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../useAuth.js";
 
-const VAZIO = { name: "", email: "", password: "", role: "bidder" };
+const EMPTY_FORM = { name: "", email: "", password: "", role: "bidder" };
 
 export default function Login() {
-  const { entrar, cadastrar } = useAuth();
+  const { login, register } = useAuth();
   const navigate = useNavigate();
-  const [modo, setModo] = useState("entrar");
-  const [form, setForm] = useState(VAZIO);
-  const [erro, setErro] = useState("");
-  const [enviando, setEnviando] = useState(false);
+  const location = useLocation();
+  const destination = location.state?.from ?? "/";
+  const [mode, setMode] = useState("login");
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  function alterar(campo, valor) {
-    setForm((atual) => ({ ...atual, [campo]: valor }));
+  function updateField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
   }
 
-  async function enviar(evento) {
-    evento.preventDefault();
-    setErro("");
-    setEnviando(true);
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    setSubmitting(true);
     try {
-      if (modo === "entrar") await entrar(form.email, form.password);
-      else await cadastrar(form);
-      navigate("/");
-    } catch (falha) {
-      setErro(falha.message);
+      if (mode === "login") await login(form.email, form.password);
+      else await register(form);
+      navigate(destination, { replace: true });
+    } catch (failure) {
+      setError(failure.message);
     } finally {
-      setEnviando(false);
+      setSubmitting(false);
     }
   }
 
   return (
     <section className="login">
-      <div className="abas">
+      {location.state?.from && (
+        <p role="status">Entre na sua conta para continuar.</p>
+      )}
+      <div className="tabs">
         <button
           type="button"
-          onClick={() => setModo("entrar")}
-          disabled={modo === "entrar"}
+          onClick={() => setMode("login")}
+          disabled={mode === "login"}
         >
           Entrar
         </button>
         <button
           type="button"
-          onClick={() => setModo("cadastrar")}
-          disabled={modo === "cadastrar"}
+          onClick={() => setMode("register")}
+          disabled={mode === "register"}
         >
           Cadastrar
         </button>
       </div>
 
-      <form onSubmit={enviar}>
-        {modo === "cadastrar" && (
+      <form onSubmit={submit}>
+        {mode === "register" && (
           <>
             <label>
               Nome
               <input
                 value={form.name}
-                onChange={(e) => alterar("name", e.target.value)}
+                onChange={(e) => updateField("name", e.target.value)}
                 required
               />
             </label>
@@ -65,7 +70,7 @@ export default function Login() {
               Tipo de conta
               <select
                 value={form.role}
-                onChange={(e) => alterar("role", e.target.value)}
+                onChange={(e) => updateField("role", e.target.value)}
               >
                 <option value="bidder">Licitante</option>
                 <option value="auctioneer">Leiloeiro</option>
@@ -78,7 +83,7 @@ export default function Login() {
           <input
             type="email"
             value={form.email}
-            onChange={(e) => alterar("email", e.target.value)}
+            onChange={(e) => updateField("email", e.target.value)}
             required
           />
         </label>
@@ -88,15 +93,15 @@ export default function Login() {
             type="password"
             minLength={6}
             value={form.password}
-            onChange={(e) => alterar("password", e.target.value)}
+            onChange={(e) => updateField("password", e.target.value)}
             required
           />
         </label>
 
-        {erro && <p role="alert">{erro}</p>}
+        {error && <p role="alert">{error}</p>}
 
-        <button type="submit" disabled={enviando}>
-          {modo === "entrar" ? "Entrar" : "Criar conta"}
+        <button type="submit" disabled={submitting}>
+          {mode === "login" ? "Entrar" : "Criar conta"}
         </button>
       </form>
     </section>

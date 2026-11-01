@@ -1,35 +1,35 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api.js";
-import { formatarReais } from "../format.js";
+import { formatCurrency } from "../format.js";
 
-export default function Comprovante() {
+export default function Receipt() {
   const { code } = useParams();
-  const [dados, setDados] = useState(null);
-  const [erro, setErro] = useState("");
-  const [copiado, setCopiado] = useState(false);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    let ativo = true;
+    let active = true;
     api(`/receipts/${code}`)
-      .then((resposta) => {
-        if (ativo) setDados(resposta);
+      .then((response) => {
+        if (active) setData(response);
       })
-      .catch((falha) => {
-        if (ativo) setErro(falha.message);
+      .catch((failure) => {
+        if (active) setError(failure.message);
       });
     return () => {
-      ativo = false;
+      active = false;
     };
   }, [code]);
 
-  if (erro) return <p role="alert">{erro}</p>;
-  if (!dados) return <p>Carregando comprovante...</p>;
+  if (error) return <p role="alert">{error}</p>;
+  if (!data) return <p>Carregando comprovante...</p>;
 
-  const { receipt, lot, audit } = dados;
-  const integro = audit.intact && audit.matches_receipt;
+  const { receipt, lot, audit } = data;
+  const isIntact = audit.intact && audit.matches_receipt;
 
-  async function compartilhar() {
+  async function share() {
     const link = window.location.href;
     if (navigator.share) {
       try {
@@ -41,20 +41,20 @@ export default function Comprovante() {
     }
     try {
       await navigator.clipboard.writeText(link);
-      setCopiado(true);
+      setCopied(true);
     } catch {
       window.prompt("Copie o link do comprovante:", link);
     }
   }
 
   return (
-    <section className="comprovante">
+    <section className="receipt">
       <h1>Comprovante de arremate</h1>
       <p>
-        <button type="button" onClick={compartilhar}>
+        <button type="button" onClick={share}>
           Compartilhar comprovante
         </button>{" "}
-        {copiado && <span>Link copiado.</span>}
+        {copied && <span>Link copiado.</span>}
       </p>
       {lot.image_url && <img src={lot.image_url} alt={lot.title} />}
       <h2>{lot.title}</h2>
@@ -64,7 +64,7 @@ export default function Comprovante() {
         <dt>Vencedor</dt>
         <dd>{receipt.winner}</dd>
         <dt>Valor final</dt>
-        <dd>{formatarReais(receipt.amount_cents)}</dd>
+        <dd>{formatCurrency(receipt.amount_cents)}</dd>
         <dt>Lances no histórico</dt>
         <dd>{receipt.bid_count}</dd>
         <dt>Emitido em</dt>
@@ -74,14 +74,14 @@ export default function Comprovante() {
       </dl>
 
       <p>
-        {integro
+        {isIntact
           ? "Histórico íntegro: confere com este comprovante."
           : "Atenção: o histórico não confere com este comprovante."}
       </p>
       {!audit.intact && (
         <ul>
-          {audit.problems.map((texto, i) => (
-            <li key={i}>{texto}</li>
+          {audit.problems.map((text, i) => (
+            <li key={i}>{text}</li>
           ))}
         </ul>
       )}

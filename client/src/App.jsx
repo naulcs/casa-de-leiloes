@@ -1,64 +1,91 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, Route, Routes } from "react-router-dom";
-import Formiga3D from "./Formiga3D.jsx";
-import { useAuth } from "./auth.jsx";
-import Arremates from "./pages/Arremates.jsx";
-import Auditoria from "./pages/Auditoria.jsx";
-import Carteira from "./pages/Carteira.jsx";
-import Comprovante from "./pages/Comprovante.jsx";
+import {
+  Link,
+  NavLink,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
+import Ant3D from "./Ant3D.jsx";
+import MyBids from "./pages/MyBids.jsx";
+import Audit from "./pages/Audit.jsx";
+import Wallet from "./pages/Wallet.jsx";
+import Receipt from "./pages/Receipt.jsx";
 import Login from "./pages/Login.jsx";
-import Painel from "./pages/Painel.jsx";
-import Sala from "./pages/Sala.jsx";
-import Vitrine, { SECOES } from "./pages/Vitrine.jsx";
+import Dashboard from "./pages/Dashboard.jsx";
+import LotRoom from "./pages/LotRoom.jsx";
+import Showcase from "./pages/Showcase.jsx";
+import { SECTIONS } from "./sections.js";
+import { useAuth } from "./useAuth.js";
 
-function temaInicial() {
+function initialTheme() {
   try {
-    const salvo = localStorage.getItem("formilance-tema");
-    if (salvo === "areia" || salvo === "terroso") return salvo;
+    const saved = localStorage.getItem("formilance-theme");
+    if (saved === "sand" || saved === "earth") return saved;
   } catch {}
   return window.matchMedia("(prefers-color-scheme: light)").matches
-    ? "areia"
-    : "terroso";
+    ? "sand"
+    : "earth";
+}
+
+function RequireLogin({ role, children }) {
+  const { user } = useAuth();
+  const location = useLocation();
+  if (!user) {
+    return (
+      <Navigate to="/entrar" replace state={{ from: location.pathname }} />
+    );
+  }
+  if (user.role !== role) {
+    return (
+      <p role="alert">
+        Esta página é só para {role === "bidder" ? "licitantes" : "leiloeiros"}.{" "}
+        <Link to="/">Voltar à vitrine</Link>
+      </p>
+    );
+  }
+  return children;
 }
 
 export default function App() {
-  const { user, carregando, sair } = useAuth();
-  const [tema, setTema] = useState(temaInicial);
+  const { user, loading, logout } = useAuth();
+  const [theme, setTheme] = useState(initialTheme);
 
   useEffect(() => {
-    document.documentElement.dataset.tema = tema;
+    document.documentElement.dataset.theme = theme;
     try {
-      localStorage.setItem("formilance-tema", tema);
+      localStorage.setItem("formilance-theme", theme);
     } catch {}
-  }, [tema]);
+  }, [theme]);
 
-  if (carregando) return <p>Carregando...</p>;
+  if (loading) return <p>Carregando...</p>;
 
   return (
     <>
-      <header className="topo">
+      <header className="top-bar">
         <Link to="/">
-          <Formiga3D />
-          <span className="letreiro">FormiLance</span>
+          <Ant3D />
+          <span className="brand-title">FormiLance</span>
         </Link>
-        <nav className="menu-lotes">
-          {SECOES.map((secao) => (
-            <NavLink key={secao.valor} to={secao.caminho}>
-              {secao.rotulo}
+        <nav className="lot-menu">
+          {SECTIONS.map((section) => (
+            <NavLink key={section.value} to={section.path}>
+              {section.label}
             </NavLink>
           ))}
         </nav>
         <button
           type="button"
-          className="tema-botao"
-          onClick={() => setTema(tema === "areia" ? "terroso" : "areia")}
+          className="theme-toggle"
+          onClick={() => setTheme(theme === "sand" ? "earth" : "sand")}
           aria-label={
-            tema === "areia"
+            theme === "sand"
               ? "Mudar para o tema terroso"
               : "Mudar para o tema areia"
           }
         >
-          {tema === "areia" ? "☾ Terroso" : "☀ Areia"}
+          {theme === "sand" ? "☾ Terroso" : "☀ Areia"}
         </button>
         {user ? (
           <>
@@ -70,7 +97,7 @@ export default function App() {
               </>
             )}
             {user.role === "auctioneer" && <Link to="/painel">Painel</Link>}
-            <button onClick={sair}>Sair</button>
+            <button onClick={logout}>Sair</button>
           </>
         ) : (
           <Link to="/entrar">Entrar</Link>
@@ -78,21 +105,42 @@ export default function App() {
       </header>
       <main>
         <Routes>
-          <Route path="/" element={<Vitrine />} />
-          {SECOES.map((secao) => (
+          <Route path="/" element={<Showcase />} />
+          {SECTIONS.map((section) => (
             <Route
-              key={secao.valor}
-              path={secao.caminho}
-              element={<Vitrine status={secao.valor} />}
+              key={section.value}
+              path={section.path}
+              element={<Showcase status={section.value} />}
             />
           ))}
           <Route path="/entrar" element={<Login />} />
-          <Route path="/lotes/:id" element={<Sala />} />
-          <Route path="/comprovantes/:code" element={<Comprovante />} />
-          <Route path="/arremates" element={<Arremates />} />
-          <Route path="/carteira" element={<Carteira />} />
-          <Route path="/painel" element={<Painel />} />
-          <Route path="/auditoria/:id" element={<Auditoria />} />
+          <Route path="/lotes/:id" element={<LotRoom />} />
+          <Route path="/comprovantes/:code" element={<Receipt />} />
+          <Route
+            path="/arremates"
+            element={
+              <RequireLogin role="bidder">
+                <MyBids />
+              </RequireLogin>
+            }
+          />
+          <Route
+            path="/carteira"
+            element={
+              <RequireLogin role="bidder">
+                <Wallet />
+              </RequireLogin>
+            }
+          />
+          <Route
+            path="/painel"
+            element={
+              <RequireLogin role="auctioneer">
+                <Dashboard />
+              </RequireLogin>
+            }
+          />
+          <Route path="/auditoria/:id" element={<Audit />} />
         </Routes>
       </main>
     </>
